@@ -9,7 +9,8 @@ return new class extends Migration {
             $table->id();
             $table->string('code')->unique();
             $table->foreignId('sale_id')->constrained('sales')->onDelete('cascade');
-            $table->foreignId('printed_by')->constrained('users')->onDelete('restrict');
+            $table->string('printed_by')->nullable();
+            $table->foreign('printed_by')->references('user_id')->on('users')->onDelete('set null');
             $table->timestamp('printed_at')->useCurrent();
             $table->string('printer_name')->nullable();
             $table->enum('print_type', ['receipt', 'invoice'])->default('receipt');

@@ -5,6 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
 class SaleItem extends Model
 {
     use HasFactory;
@@ -20,28 +25,18 @@ class SaleItem extends Model
     ];
 
     protected $casts = [
-        'quantity' => 'integer',
         'unit_price' => 'decimal:2',
         'total_price' => 'decimal:2',
         'discount' => 'decimal:2',
     ];
 
-    
     public function sale()
     {
-        return $this->belongsTo(Sale::class);
+        return $this->belongsTo(Sale::class, 'sale_id', 'code');
     }
 
     public function product()
     {
-        return $this->belongsTo(Product::class);
-    }
-
-    
-    public function calculateTotal()
-    {
-        $this->total_price = ($this->unit_price * $this->quantity) - $this->discount;
-        $this->save();
-        return $this;
+        return $this->belongsTo(Product::class, 'product_id', 'code');
     }
 }

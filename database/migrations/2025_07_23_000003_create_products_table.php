@@ -17,15 +17,11 @@ return new class extends Migration {
             $table->integer('min_stock')->default(0); 
             $table->string('unit')->default('pcs'); 
             $table->boolean('is_active')->default(true);
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->unsignedBigInteger('updated_by')->nullable();
+            $table->string('created_by');
+            $table->foreign('created_by')->references('user_id')->on('users')->onDelete('restrict');
+            $table->string('updated_by');
+            $table->foreign('updated_by')->references('user_id')->on('users')->onDelete('restrict');
             $table->timestamps();
-            
-            // Foreign keys
-            $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
-            $table->foreign('updated_by')->references('id')->on('users')->onDelete('set null');
-            
-            // Indexes
             $table->index(['category_id', 'is_active']);
             $table->index('stock');
         });

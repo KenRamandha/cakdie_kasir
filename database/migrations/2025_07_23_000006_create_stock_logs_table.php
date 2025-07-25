@@ -16,10 +16,9 @@ return new class extends Migration {
             $table->text('notes')->nullable();
             $table->string('reference_type')->nullable(); 
             $table->unsignedBigInteger('reference_id')->nullable(); 
-            $table->foreignId('created_by')->constrained('users')->onDelete('restrict');
+            $table->string('created_by')->nullable();
+            $table->foreign('created_by')->references('user_id')->on('users')->onDelete('set null');
             $table->timestamps();
-            
-            // Indexes
             $table->index(['product_id', 'type', 'created_at']);
             $table->index(['reference_type', 'reference_id']);
         });

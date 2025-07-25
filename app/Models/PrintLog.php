@@ -24,23 +24,13 @@ class PrintLog extends Model
         'is_reprint' => 'boolean',
     ];
 
-    protected static function boot()
-    {
-        parent::boot();
-        
-        static::creating(function ($printLog) {
-            $printLog->printed_at = now();
-        });
-    }
-
-    
     public function sale()
     {
         return $this->belongsTo(Sale::class);
     }
 
-    public function printedBy()
+    public function printer()
     {
-        return $this->belongsTo(User::class, 'printed_by');
+        return $this->belongsTo(User::class, 'printed_by', 'user_id');
     }
 }

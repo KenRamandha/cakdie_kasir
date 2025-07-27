@@ -40,7 +40,7 @@ class Sale extends Model
 
     public function saleItems()
     {
-        return $this->hasMany(SaleItem::class, 'sale_id', 'code');
+        return $this->hasMany(SaleItem::class);
     }
 
     public function printLogs()

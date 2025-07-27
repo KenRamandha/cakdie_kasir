@@ -36,7 +36,6 @@ class User extends Authenticatable
         });
     }
 
-
     protected $hidden = [
         'password',
         'remember_token',
@@ -47,6 +46,10 @@ class User extends Authenticatable
         'is_active' => 'boolean',
     ];
 
+    // Role constants
+    const ROLE_PEMILIK = 'pemilik';
+    const ROLE_PEGAWAI = 'pegawai';
+
     public function sales()
     {
         return $this->hasMany(Sale::class, 'cashier_id', 'user_id');
@@ -55,5 +58,30 @@ class User extends Authenticatable
     public function createdProducts()
     {
         return $this->hasMany(Product::class, 'created_by');
+    }
+
+    public function createdCategories()
+    {
+        return $this->hasMany(Category::class, 'created_by');
+    }
+
+    public function stockLogs()
+    {
+        return $this->hasMany(StockLog::class, 'created_by');
+    }
+
+    public function printLogs()
+    {
+        return $this->hasMany(PrintLog::class, 'printed_by');
+    }
+
+    public function isPemilik()
+    {
+        return $this->role === self::ROLE_PEMILIK;
+    }
+
+    public function isPegawai()
+    {
+        return $this->role === self::ROLE_PEGAWAI;
     }
 }

@@ -15,11 +15,11 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         
-        // Pegawai tidak boleh melihat data pendapatan
-        if ($user->role === 'pegawai') {
+        if ($user->isPegawai()) {
             return response()->json([
                 'stock_chart' => $this->getStockChart($request),
                 'sales_history' => $this->getSalesHistory($request),
+                'low_stock_products' => $this->getLowStockProducts(),
             ]);
         }
 
@@ -27,27 +27,29 @@ class DashboardController extends Controller
             'revenue_chart' => $this->getRevenueChart($request),
             'stock_chart' => $this->getStockChart($request),
             'sales_history' => $this->getSalesHistory($request),
+            'low_stock_products' => $this->getLowStockProducts(),
+            'summary_stats' => $this->getSummaryStats(),
         ]);
     }
 
     private function getRevenueChart(Request $request)
     {
-        $period = $request->get('period', 'daily'); // daily, weekly, monthly
+        $period = $request->get('period', 'daily'); 
         
         $query = Sale::query();
         
         switch ($period) {
             case 'weekly':
-                $query->selectRaw('WEEK(transaction_date) as period, SUM(total) as revenue')
+                $query->selectRaw('YEARWEEK(transaction_date) as period, SUM(total) as revenue')
                       ->where('transaction_date', '>=', Carbon::now()->subWeeks(8))
-                      ->groupByRaw('WEEK(transaction_date)')
-                      ->orderByRaw('WEEK(transaction_date)');
+                      ->groupByRaw('YEARWEEK(transaction_date)')
+                      ->orderByRaw('YEARWEEK(transaction_date)');
                 break;
             case 'monthly':
-                $query->selectRaw('MONTH(transaction_date) as period, SUM(total) as revenue')
+                $query->selectRaw('YEAR(transaction_date) as year, MONTH(transaction_date) as month, SUM(total) as revenue')
                       ->where('transaction_date', '>=', Carbon::now()->subMonths(12))
-                      ->groupByRaw('MONTH(transaction_date)')
-                      ->orderByRaw('MONTH(transaction_date)');
+                      ->groupByRaw('YEAR(transaction_date), MONTH(transaction_date)')
+                      ->orderByRaw('YEAR(transaction_date), MONTH(transaction_date)');
                 break;
             default: // daily
                 $query->selectRaw('DATE(transaction_date) as period, SUM(total) as revenue')
@@ -63,26 +65,47 @@ class DashboardController extends Controller
     {
         $period = $request->get('period', 'daily');
         
-        $query = StockLog::with('product.category');
+        $query = StockLog::with(['product.category'])
+                         ->select([
+                             'product_id',
+                             'type',
+                             'created_at',
+                             DB::raw('SUM(quantity) as total_quantity')
+                         ]);
         
         switch ($period) {
             case 'weekly':
-                $query->selectRaw('WEEK(created_at) as period, product_id, type, SUM(quantity) as total_quantity')
+                $query->selectRaw('YEARWEEK(created_at) as period, product_id, type, SUM(quantity) as total_quantity')
                       ->where('created_at', '>=', Carbon::now()->subWeeks(8))
                       ->groupBy(['period', 'product_id', 'type']);
                 break;
             case 'monthly':
-                $query->selectRaw('MONTH(created_at) as period, product_id, type, SUM(quantity) as total_quantity')
+                $query->selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, product_id, type, SUM(quantity) as total_quantity')
                       ->where('created_at', '>=', Carbon::now()->subMonths(12))
-                      ->groupBy(['period', 'product_id', 'type']);
+                      ->groupBy(['year', 'month', 'product_id', 'type']);
                 break;
-            default: // daily
+            default: 
                 $query->selectRaw('DATE(created_at) as period, product_id, type, SUM(quantity) as total_quantity')
                       ->where('created_at', '>=', Carbon::now()->subDays(30))
                       ->groupBy(['period', 'product_id', 'type']);
         }
         
-        return $query->get();
+        $stockData = $query->get();
+        
+        // Group by category
+        $categorizedData = [];
+        foreach ($stockData as $data) {
+            $categoryName = $data->product->category->name;
+            if (!isset($categorizedData[$categoryName])) {
+                $categorizedData[$categoryName] = [
+                    'in' => 0,
+                    'out' => 0,
+                ];
+            }
+            $categorizedData[$categoryName][$data->type] += $data->total_quantity;
+        }
+        
+        return $categorizedData;
     }
 
     private function getSalesHistory(Request $request)
@@ -92,13 +115,49 @@ class DashboardController extends Controller
                    ->paginate(20);
     }
 
+    private function getLowStockProducts()
+    {
+        return Product::with('category')
+                      ->whereRaw('stock <= min_stock')
+                      ->where('is_active', true)
+                      ->get();
+    }
+
+    private function getSummaryStats()
+    {
+        $today = Carbon::today();
+        $thisMonth = Carbon::now()->startOfMonth();
+        
+        return [
+            'today_sales' => Sale::whereDate('transaction_date', $today)->sum('total'),
+            'today_transactions' => Sale::whereDate('transaction_date', $today)->count(),
+            'month_sales' => Sale::where('transaction_date', '>=', $thisMonth)->sum('total'),
+            'month_transactions' => Sale::where('transaction_date', '>=', $thisMonth)->count(),
+            'total_products' => Product::where('is_active', true)->count(),
+            'low_stock_count' => Product::whereRaw('stock <= min_stock')->where('is_active', true)->count(),
+        ];
+    }
+
     public function exportSales(Request $request)
     {
-        $sales = Sale::with(['cashier', 'saleItems.product'])
-                     ->orderBy('transaction_date', 'desc')
-                     ->get();
+        $user = $request->user();
+        
+        if ($user->isPegawai()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
 
-        // Simple CSV export
+        $startDate = $request->get('start_date');
+        $endDate = $request->get('end_date');
+        
+        $query = Sale::with(['cashier', 'saleItems.product'])
+                     ->orderBy('transaction_date', 'desc');
+                     
+        if ($startDate && $endDate) {
+            $query->whereBetween('transaction_date', [$startDate, $endDate]);
+        }
+        
+        $sales = $query->get();
+
         $filename = 'sales_export_' . date('Y-m-d') . '.csv';
         $headers = [
             'Content-Type' => 'text/csv',
@@ -107,15 +166,19 @@ class DashboardController extends Controller
 
         $callback = function() use ($sales) {
             $file = fopen('php://output', 'w');
-            fputcsv($file, ['Kode', 'Tanggal', 'Kasir', 'Total', 'Metode Pembayaran']);
+            fputcsv($file, ['Kode Transaksi', 'Tanggal', 'Kasir', 'Subtotal', 'Pajak', 'Diskon', 'Total', 'Metode Pembayaran', 'Catatan']);
             
             foreach ($sales as $sale) {
                 fputcsv($file, [
                     $sale->code,
                     $sale->transaction_date->format('Y-m-d H:i:s'),
                     $sale->cashier->name,
+                    $sale->subtotal,
+                    $sale->tax,
+                    $sale->discount,
                     $sale->total,
-                    $sale->payment_method
+                    $sale->payment_method,
+                    $sale->notes
                 ]);
             }
             fclose($file);

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Sale;
@@ -10,14 +9,27 @@ use App\Models\PrintLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Models\Category;
+use App\Models\User;
 
 class SaleController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $sales = Sale::with(['cashier', 'saleItems.product'])
-                     ->orderBy('transaction_date', 'desc')
-                     ->paginate(20);
+        $query = Sale::with(['cashier', 'saleItems.product']);
+        
+        if ($request->has('start_date') && $request->has('end_date')) {
+            $query->whereBetween('transaction_date', [$request->start_date, $request->end_date]);
+        }
+        
+        if ($request->has('cashier_user_id')) {
+            $cashier = User::where('user_id', $request->cashier_user_id)->first();
+            if ($cashier) {
+                $query->where('cashier_id', $cashier->id);
+            }
+        }
+        
+        $sales = $query->orderBy('transaction_date', 'desc')->paginate(20);
         
         return response()->json($sales);
     }
@@ -26,34 +38,38 @@ class SaleController extends Controller
     {
         $request->validate([
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_code' => 'required|exists:products,code',
             'items.*.quantity' => 'required|integer|min:1',
+            'items.*.discount' => 'nullable|numeric|min:0',
             'payment_method' => 'required|in:cash,card,transfer',
             'cash_received' => 'nullable|numeric',
+            'tax' => 'nullable|numeric|min:0',
+            'discount' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string',
         ]);
 
         return DB::transaction(function () use ($request) {
             $subtotal = 0;
             $saleItems = [];
 
-            // Calculate subtotal and prepare sale items
             foreach ($request->items as $item) {
-                $product = Product::findOrFail($item['product_id']);
+                $product = Product::where('code', $item['product_code'])->firstOrFail();
                 
                 // Check stock availability
                 if ($product->stock < $item['quantity']) {
-                    throw new \Exception("Stock tidak mencukupi untuk produk {$product->name}");
+                    throw new \Exception("Stock tidak mencukupi untuk produk {$product->name}. Stock tersedia: {$product->stock}");
                 }
 
-                $totalPrice = $product->price * $item['quantity'];
-                $subtotal += $totalPrice;
+                $itemDiscount = $item['discount'] ?? 0;
+                $totalPrice = ($product->price * $item['quantity']) - $itemDiscount;
+                $subtotal += $totalPrice + $itemDiscount; 
 
                 $saleItems[] = [
                     'product' => $product,
                     'quantity' => $item['quantity'],
                     'unit_price' => $product->price,
                     'total_price' => $totalPrice,
-                    'discount' => $item['discount'] ?? 0,
+                    'discount' => $itemDiscount,
                 ];
             }
 
@@ -61,10 +77,15 @@ class SaleController extends Controller
             $discount = $request->discount ?? 0;
             $total = $subtotal + $tax - $discount;
 
-            // Create sale
+            if ($request->payment_method === 'cash') {
+                if (!$request->cash_received || $request->cash_received < $total) {
+                    throw new \Exception("Jumlah uang yang diterima tidak mencukupi. Total: {$total}");
+                }
+            }
+
             $sale = Sale::create([
                 'code' => 'TRX-' . date('Ymd') . '-' . Str::random(6),
-                'subtotal' => $subtotal,
+                'subtotal' => $subtotal - array_sum(array_column($saleItems, 'discount')), 
                 'tax' => $tax,
                 'discount' => $discount,
                 'total' => $total,
@@ -73,10 +94,10 @@ class SaleController extends Controller
                     ($request->cash_received - $total) : 0,
                 'payment_method' => $request->payment_method,
                 'notes' => $request->notes,
-                'cashier_id' => $request->user()->user_id,
+                'cashier_id' => $request->user()->id,
+                'transaction_date' => now(),
             ]);
 
-            // Create sale items and update stock
             foreach ($saleItems as $item) {
                 SaleItem::create([
                     'code' => 'ITM-' . Str::random(8),
@@ -88,14 +109,12 @@ class SaleController extends Controller
                     'discount' => $item['discount'],
                 ]);
 
-                // Update product stock
                 $product = $item['product'];
                 $stockBefore = $product->stock;
                 $stockAfter = $stockBefore - $item['quantity'];
                 
                 $product->update(['stock' => $stockAfter]);
 
-                // Create stock log
                 StockLog::create([
                     'code' => 'STK-' . Str::random(8),
                     'product_id' => $product->id,
@@ -103,10 +122,10 @@ class SaleController extends Controller
                     'quantity' => $item['quantity'],
                     'stock_before' => $stockBefore,
                     'stock_after' => $stockAfter,
-                    'notes' => 'Sale transaction',
+                    'notes' => 'Sale transaction: ' . $sale->code,
                     'reference_type' => 'sale',
                     'reference_id' => $sale->id,
-                    'created_by' => $request->user()->id,
+                    'created_by' => $request->user()->user_id,
                 ]);
             }
 
@@ -114,57 +133,127 @@ class SaleController extends Controller
         });
     }
 
-    public function show($id)
+    public function show($code)
     {
-        $sale = Sale::with(['cashier', 'saleItems.product'])->findOrFail($id);
+        $sale = Sale::with(['cashier', 'saleItems.product'])
+                   ->where('code', $code)
+                   ->firstOrFail();
         return response()->json($sale);
     }
 
-    public function printReceipt(Request $request, $id)
+    public function getProductsByCategory(Request $request)
     {
-        $sale = Sale::with(['cashier', 'saleItems.product'])->findOrFail($id);
+        $categoryCode = $request->get('category_code');
         
-        // Create print log
+        $query = Product::with('category')->where('is_active', true)->where('stock', '>', 0);
+        
+        if ($categoryCode) {
+            $category = Category::where('code', $categoryCode)->first();
+            if ($category) {
+                $query->where('category_id', $category->id);
+            }
+        }
+        
+        return response()->json($query->get());
+    }
+
+    public function printReceipt(Request $request, $code)
+    {
+        $sale = Sale::with(['cashier', 'saleItems.product'])
+                   ->where('code', $code)
+                   ->firstOrFail();
+        
+        $isReprint = PrintLog::where('sale_id', $sale->id)->exists();
+        
         PrintLog::create([
             'code' => 'PRT-' . Str::random(8),
             'sale_id' => $sale->id,
-            'printed_by' => $request->user()->id,
-            'printer_name' => $request->printer_name,
+            'printed_by' => $request->user()->user_id,
+            'printed_at' => now(),
+            'printer_name' => $request->printer_name ?? 'Default Printer',
             'print_type' => 'receipt',
-            'is_reprint' => PrintLog::where('sale_id', $id)->exists(),
+            'is_reprint' => $isReprint,
         ]);
 
-        // Return receipt data for printing
         return response()->json([
             'sale' => $sale,
-            'receipt_data' => $this->generateReceiptData($sale)
+            'receipt_data' => $this->generateReceiptData($sale),
+            'is_reprint' => $isReprint
         ]);
     }
 
     private function generateReceiptData($sale)
     {
         return [
-            'store_name' => 'Toko Saya',
-            'address' => 'Alamat Toko',
-            'phone' => '08123456789',
-            'transaction_code' => $sale->code,
-            'date' => $sale->transaction_date->format('d/m/Y H:i:s'),
-            'cashier' => $sale->cashier->name,
+            'store_info' => [
+                'name' => 'Toko Saya',
+                'address' => 'Jl. Contoh No. 123, Jakarta',
+                'phone' => '08123456789',
+            ],
+            'transaction' => [
+                'code' => $sale->code,
+                'date' => $sale->transaction_date->format('d/m/Y H:i:s'),
+                'cashier' => $sale->cashier->name,
+            ],
             'items' => $sale->saleItems->map(function ($item) {
                 return [
                     'name' => $item->product->name,
                     'quantity' => $item->quantity,
-                    'price' => $item->unit_price,
+                    'unit_price' => $item->unit_price,
+                    'discount' => $item->discount,
                     'total' => $item->total_price,
                 ];
             }),
-            'subtotal' => $sale->subtotal,
-            'tax' => $sale->tax,
-            'discount' => $sale->discount,
-            'total' => $sale->total,
-            'cash_received' => $sale->cash_received,
-            'change' => $sale->change_amount,
-            'payment_method' => $sale->payment_method,
+            'summary' => [
+                'subtotal' => $sale->subtotal,
+                'tax' => $sale->tax,
+                'discount' => $sale->discount,
+                'total' => $sale->total,
+                'cash_received' => $sale->cash_received,
+                'change' => $sale->change_amount,
+                'payment_method' => $sale->payment_method,
+            ],
+            'notes' => $sale->notes,
         ];
+    }
+
+    public function deleteSale(Request $request, $code)
+    {
+        if ($request->user()->isPegawai()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        return DB::transaction(function () use ($code, $request) {
+            $sale = Sale::with('saleItems')->where('code', $code)->firstOrFail();
+            
+            foreach ($sale->saleItems as $item) {
+                $product = Product::find($item->product_id);
+                if ($product) {
+                    $stockBefore = $product->stock;
+                    $stockAfter = $stockBefore + $item->quantity;
+                    
+                    $product->update(['stock' => $stockAfter]);
+                    
+                    StockLog::create([
+                        'code' => 'STK-' . Str::random(8),
+                        'product_id' => $product->id,
+                        'type' => 'in',
+                        'quantity' => $item->quantity,
+                        'stock_before' => $stockBefore,
+                        'stock_after' => $stockAfter,
+                        'notes' => 'Sale cancellation: ' . $sale->code,
+                        'reference_type' => 'sale_cancellation',
+                        'reference_id' => $sale->id,
+                        'created_by' => $request->user()->user_id,
+                    ]);
+                }
+            }
+            
+            $sale->saleItems()->delete();
+            $sale->printLogs()->delete();
+            $sale->delete();
+            
+            return response()->json(['message' => 'Sale deleted successfully']);
+        });
     }
 }

@@ -11,8 +11,11 @@ class StockController extends Controller
     {
         $query = StockLog::with(['product.category', 'creator']);
         
-        if ($request->has('product_id')) {
-            $query->where('product_id', $request->product_id);
+        if ($request->has('product_code')) {
+            $product = Product::where('code', $request->product_code)->first();
+            if ($product) {
+                $query->where('product_id', $product->id);
+            }
         }
         
         if ($request->has('type')) {

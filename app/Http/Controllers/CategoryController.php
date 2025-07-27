@@ -5,6 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use Illuminate\Http\Request;
 
+namespace App\Http\Controllers;
+
+use App\Models\Category;
+use Illuminate\Http\Request;
+
 class CategoryController extends Controller
 {
     public function index()
@@ -24,24 +29,24 @@ class CategoryController extends Controller
             'code' => $request->code,
             'name' => $request->name,
             'description' => $request->description,
-            'created_by' => $request->user()->id,
+            'created_by' => $request->user()->user_id,
         ]);
 
         return response()->json($category, 201);
     }
 
-    public function show($id)
+    public function show($code)
     {
-        $category = Category::findOrFail($id);
+        $category = Category::where('code', $code)->firstOrFail();
         return response()->json($category);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $code)
     {
-        $category = Category::findOrFail($id);
+        $category = Category::where('code', $code)->firstOrFail();
         
         $request->validate([
-            'code' => 'required|unique:categories,code,' . $id,
+            'code' => 'required|unique:categories,code,' . $category->id,
             'name' => 'required',
         ]);
 
@@ -49,15 +54,15 @@ class CategoryController extends Controller
             'code' => $request->code,
             'name' => $request->name,
             'description' => $request->description,
-            'updated_by' => $request->user()->id,
+            'updated_by' => $request->user()->user_id,
         ]);
 
         return response()->json($category);
     }
 
-    public function destroy($id)
+    public function destroy($code)
     {
-        $category = Category::findOrFail($id);
+        $category = Category::where('code', $code)->firstOrFail();
         $category->update(['is_active' => false]);
         
         return response()->json(['message' => 'Category deactivated successfully']);

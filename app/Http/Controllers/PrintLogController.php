@@ -1,9 +1,9 @@
 <?php
-
 namespace App\Http\Controllers;
 
-use App\Models\PrintLog;
 use Illuminate\Http\Request;
+use App\Models\PrintLog;
+use App\Models\Sale;
 
 class PrintLogController extends Controller
 {
@@ -15,12 +15,15 @@ class PrintLogController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'sale_id' => 'required|exists:sales,id',
+            'sale_code' => 'required|exists:sales,code',
         ]);
 
+        $sale = Sale::where('code', $request->sale_code)->firstOrFail();
+
         return PrintLog::create([
-            'sale_id' => $request->sale_id,
-            'user_id' => $request->user()->id,
+            'sale_id' => $sale->id,
+            'user_id' => $request->user()->user_id,
         ]);
     }
 }
+

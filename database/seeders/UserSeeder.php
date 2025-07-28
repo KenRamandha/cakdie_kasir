@@ -9,8 +9,8 @@ class UserSeeder extends Seeder
 {
     public function run()
     {
-        // Create owner account
         User::create([
+            'user_id' => 'USR-0001',
             'name' => 'Pemilik Toko',
             'username' => 'owner',
             'email' => 'owner@toko.com',
@@ -18,9 +18,8 @@ class UserSeeder extends Seeder
             'role' => 'pemilik',
             'is_active' => true,
         ]);
-
-        // Create employee account
         User::create([
+            'user_id' => 'USR-0002',
             'name' => 'Pegawai Kasir',
             'username' => 'kasir',
             'email' => 'kasir@toko.com',

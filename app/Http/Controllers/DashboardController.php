@@ -65,29 +65,26 @@ class DashboardController extends Controller
     {
         $period = $request->get('period', 'daily');
         
-        $query = StockLog::with(['product.category'])
-                         ->select([
-                             'product_id',
-                             'type',
-                             'created_at',
-                             DB::raw('SUM(quantity) as total_quantity')
-                         ]);
+        $query = StockLog::with(['product.category']);
         
         switch ($period) {
             case 'weekly':
                 $query->selectRaw('YEARWEEK(created_at) as period, product_id, type, SUM(quantity) as total_quantity')
                       ->where('created_at', '>=', Carbon::now()->subWeeks(8))
-                      ->groupBy(['period', 'product_id', 'type']);
+                      ->groupByRaw('YEARWEEK(created_at), product_id, type')
+                      ->orderByRaw('YEARWEEK(created_at)');
                 break;
             case 'monthly':
                 $query->selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, product_id, type, SUM(quantity) as total_quantity')
                       ->where('created_at', '>=', Carbon::now()->subMonths(12))
-                      ->groupBy(['year', 'month', 'product_id', 'type']);
+                      ->groupByRaw('YEAR(created_at), MONTH(created_at), product_id, type')
+                      ->orderByRaw('YEAR(created_at), MONTH(created_at)');
                 break;
-            default: 
+            default: // daily
                 $query->selectRaw('DATE(created_at) as period, product_id, type, SUM(quantity) as total_quantity')
                       ->where('created_at', '>=', Carbon::now()->subDays(30))
-                      ->groupBy(['period', 'product_id', 'type']);
+                      ->groupByRaw('DATE(created_at), product_id, type')
+                      ->orderByRaw('DATE(created_at)');
         }
         
         $stockData = $query->get();
@@ -100,8 +97,15 @@ class DashboardController extends Controller
                 $categorizedData[$categoryName] = [
                     'in' => 0,
                     'out' => 0,
+                    'adjustment' => 0,
                 ];
             }
+            
+            // Pastikan type exists dalam array, jika tidak ada maka inisialisasi dengan 0
+            if (!isset($categorizedData[$categoryName][$data->type])) {
+                $categorizedData[$categoryName][$data->type] = 0;
+            }
+            
             $categorizedData[$categoryName][$data->type] += $data->total_quantity;
         }
         

@@ -1,5 +1,4 @@
 <?php
-
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -12,19 +11,36 @@ class PrintLogsSeeder extends Seeder
 {
     public function run(): void
     {
-        $sales = Sale::inRandomOrder()->take(10)->get();
-        $users = User::inRandomOrder()->take(5)->get();
+        $sales = Sale::all();
+        $users = User::all();
 
-        foreach ($sales as $sale) {
+        if ($sales->isEmpty() || $users->isEmpty()) {
+            $this->command->error("Sales or users not found.");
+            return;
+        }
+
+        foreach ($sales->take(4) as $sale) {
             PrintLog::create([
-                'code' => strtoupper(Str::random(10)),
+                'code' => 'PRT-' . strtoupper(Str::random(8)),
                 'sale_id' => $sale->id,
                 'printed_by' => $users->random()->user_id,
-                'printed_at' => now(),
-                'printer_name' => 'EPSON-58MM',
-                'print_type' => collect(['receipt', 'invoice'])->random(),
-                'is_reprint' => (bool) rand(0, 1),
+                'printed_at' => $sale->transaction_date->addMinutes(5),
+                'printer_name' => collect(['EPSON-58MM', 'CANON-80MM', 'HP-LaserJet'])->random(),
+                'print_type' => 'receipt',
+                'is_reprint' => false,
             ]);
+
+            if (rand(0, 1)) {
+                PrintLog::create([
+                    'code' => 'PRT-' . strtoupper(Str::random(8)),
+                    'sale_id' => $sale->id,
+                    'printed_by' => $users->random()->user_id,
+                    'printed_at' => $sale->transaction_date->addMinutes(rand(10, 60)),
+                    'printer_name' => collect(['EPSON-58MM', 'CANON-80MM', 'HP-LaserJet'])->random(),
+                    'print_type' => collect(['receipt', 'invoice'])->random(),
+                    'is_reprint' => true,
+                ]);
+            }
         }
     }
 }

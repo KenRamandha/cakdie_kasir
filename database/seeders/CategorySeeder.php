@@ -1,5 +1,4 @@
 <?php
-
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -10,19 +9,44 @@ class CategorySeeder extends Seeder
 {
     public function run()
     {
-        // Ambil satu user, misalnya user pertama
-        $user = User::first();
+        $user = User::where('user_id', 'USR-0001')->first();
 
-        // Jika tidak ada user, hentikan seeder agar tidak error
         if (!$user) {
-            $this->command->error('Tidak ada user ditemukan. Buat user terlebih dahulu sebelum menjalankan seeder.');
+            $this->command->error('User dengan user_id USR-0001 tidak ditemukan.');
             return;
         }
 
         $categories = [
-            ['code' => 'SCR-TSHIRT', 'name' => 'Sablon Kaos', 'description' => 'Jasa sablon kaos custom.'],
-            ['code' => 'SCR-TOTE', 'name' => 'Sablon Tote Bag', 'description' => 'Jasa sablon tas kain ramah lingkungan.'],
-            ['code' => 'SCR-INK', 'name' => 'Tinta Sablon Tekstil', 'description' => 'Tinta sablon khusus untuk kain.'],
+            [
+                'code' => 'SCR',
+                'name' => 'Screen Printing',
+                'description' => 'Produk dan layanan sablon screen printing',
+                'is_active' => true,
+            ],
+            [
+                'code' => 'DTF',
+                'name' => 'DTF Printing',
+                'description' => 'Direct to Film printing services',
+                'is_active' => true,
+            ],
+            [
+                'code' => 'EMB',
+                'name' => 'Embroidery',
+                'description' => 'Jasa bordir kustom',
+                'is_active' => true,
+            ],
+            [
+                'code' => 'ACC',
+                'name' => 'Accessories',
+                'description' => 'Aksesoris dan bahan pendukung',
+                'is_active' => true,
+            ],
+            [
+                'code' => 'PKG',
+                'name' => 'Packaging',
+                'description' => 'Kemasan dan packaging',
+                'is_active' => true,
+            ],
         ];
 
         foreach ($categories as $category) {

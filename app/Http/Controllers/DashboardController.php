@@ -7,7 +7,6 @@ use App\Models\StockLog;
 use App\Models\Product;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -66,8 +65,14 @@ class DashboardController extends Controller
                     ->orderByRaw('DATE(transaction_date)');
         }
 
-        return $query->get();
+        return $query->get()->map(function ($item) {
+            return [
+                'period' => (string) $item->period,
+                'revenue' => (float) $item->revenue,
+            ];
+        });
     }
+
 
 
     private function getStockChart(Request $request)
@@ -109,6 +114,7 @@ class DashboardController extends Controller
         $categorizedData = [];
         foreach ($stockData as $data) {
             $categoryName = $data->product->category->name;
+
             if (!isset($categorizedData[$categoryName])) {
                 $categorizedData[$categoryName] = [
                     'in' => 0,
@@ -117,15 +123,12 @@ class DashboardController extends Controller
                 ];
             }
 
-            if (!isset($categorizedData[$categoryName][$data->type])) {
-                $categorizedData[$categoryName][$data->type] = 0;
-            }
-
-            $categorizedData[$categoryName][$data->type] += $data->total_quantity;
+            $categorizedData[$categoryName][$data->type] = (float) ($categorizedData[$categoryName][$data->type] ?? 0) + (float) $data->total_quantity;
         }
 
         return $categorizedData;
     }
+
 
 
     private function getSalesHistory(Request $request)
@@ -149,14 +152,15 @@ class DashboardController extends Controller
         $thisMonth = Carbon::now()->startOfMonth();
 
         return [
-            'today_sales' => Sale::whereDate('transaction_date', $today)->sum('total'),
-            'today_transactions' => Sale::whereDate('transaction_date', $today)->count(),
-            'month_sales' => Sale::where('transaction_date', '>=', $thisMonth)->sum('total'),
-            'month_transactions' => Sale::where('transaction_date', '>=', $thisMonth)->count(),
-            'total_products' => Product::where('is_active', true)->count(),
-            'low_stock_count' => Product::whereRaw('stock <= min_stock')->where('is_active', true)->count(),
+            'today_sales' => (float)(Sale::whereDate('transaction_date', $today)->sum('total') ?? 0),
+            'today_transactions' => (int)(Sale::whereDate('transaction_date', $today)->count() ?? 0),
+            'month_sales' => (float)(Sale::where('transaction_date', '>=', $thisMonth)->sum('total') ?? 0),
+            'month_transactions' => (int)(Sale::where('transaction_date', '>=', $thisMonth)->count() ?? 0),
+            'total_products' => (int)(Product::where('is_active', true)->count() ?? 0),
+            'low_stock_count' => (int)(Product::whereRaw('stock <= min_stock')->where('is_active', true)->count() ?? 0),
         ];
     }
+
 
     public function exportSales(Request $request)
     {

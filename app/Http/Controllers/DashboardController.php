@@ -14,7 +14,7 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        
+
         if ($user->isPegawai()) {
             return response()->json([
                 'stock_chart' => $this->getStockChart($request),
@@ -34,62 +34,78 @@ class DashboardController extends Controller
 
     private function getRevenueChart(Request $request)
     {
-        $period = $request->get('period', 'daily'); 
-        
+        $period = $request->get('period', 'daily');
+
         $query = Sale::query();
-        
+
         switch ($period) {
             case 'weekly':
-                $query->selectRaw('YEARWEEK(transaction_date) as period, SUM(total) as revenue')
-                      ->where('transaction_date', '>=', Carbon::now()->subWeeks(8))
-                      ->groupByRaw('YEARWEEK(transaction_date)')
-                      ->orderByRaw('YEARWEEK(transaction_date)');
+                $query->selectRaw("
+                STR_TO_DATE(CONCAT(YEAR(transaction_date), ' ', WEEK(transaction_date, 3), ' 1'), '%X %V %w') as period,
+                SUM(total) as revenue
+            ")
+                    ->where('transaction_date', '>=', Carbon::now()->subWeeks(8))
+                    ->groupByRaw("STR_TO_DATE(CONCAT(YEAR(transaction_date), ' ', WEEK(transaction_date, 3), ' 1'), '%X %V %w')")
+                    ->orderByRaw("STR_TO_DATE(CONCAT(YEAR(transaction_date), ' ', WEEK(transaction_date, 3), ' 1'), '%X %V %w')");
                 break;
+
             case 'monthly':
-                $query->selectRaw('YEAR(transaction_date) as year, MONTH(transaction_date) as month, SUM(total) as revenue')
-                      ->where('transaction_date', '>=', Carbon::now()->subMonths(12))
-                      ->groupByRaw('YEAR(transaction_date), MONTH(transaction_date)')
-                      ->orderByRaw('YEAR(transaction_date), MONTH(transaction_date)');
+                $query->selectRaw("
+                DATE_FORMAT(transaction_date, '%Y-%m-01') as period,
+                SUM(total) as revenue
+            ")
+                    ->where('transaction_date', '>=', Carbon::now()->subMonths(12))
+                    ->groupByRaw("DATE_FORMAT(transaction_date, '%Y-%m-01')")
+                    ->orderByRaw("DATE_FORMAT(transaction_date, '%Y-%m-01')");
                 break;
-            default: // daily
+
+            default:
                 $query->selectRaw('DATE(transaction_date) as period, SUM(total) as revenue')
-                      ->where('transaction_date', '>=', Carbon::now()->subDays(30))
-                      ->groupByRaw('DATE(transaction_date)')
-                      ->orderByRaw('DATE(transaction_date)');
+                    ->where('transaction_date', '>=', Carbon::now()->subDays(30))
+                    ->groupByRaw('DATE(transaction_date)')
+                    ->orderByRaw('DATE(transaction_date)');
         }
-        
+
         return $query->get();
     }
+
 
     private function getStockChart(Request $request)
     {
         $period = $request->get('period', 'daily');
-        
+
         $query = StockLog::with(['product.category']);
-        
+
         switch ($period) {
             case 'weekly':
-                $query->selectRaw('YEARWEEK(created_at) as period, product_id, type, SUM(quantity) as total_quantity')
-                      ->where('created_at', '>=', Carbon::now()->subWeeks(8))
-                      ->groupByRaw('YEARWEEK(created_at), product_id, type')
-                      ->orderByRaw('YEARWEEK(created_at)');
+                $query->selectRaw("
+                STR_TO_DATE(CONCAT(YEAR(created_at), ' ', WEEK(created_at, 3), ' 1'), '%X %V %w') as period,
+                product_id, type, SUM(quantity) as total_quantity
+            ")
+                    ->where('created_at', '>=', Carbon::now()->subWeeks(8))
+                    ->groupByRaw("STR_TO_DATE(CONCAT(YEAR(created_at), ' ', WEEK(created_at, 3), ' 1'), '%X %V %w'), product_id, type")
+                    ->orderByRaw("STR_TO_DATE(CONCAT(YEAR(created_at), ' ', WEEK(created_at, 3), ' 1'), '%X %V %w')");
                 break;
+
             case 'monthly':
-                $query->selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, product_id, type, SUM(quantity) as total_quantity')
-                      ->where('created_at', '>=', Carbon::now()->subMonths(12))
-                      ->groupByRaw('YEAR(created_at), MONTH(created_at), product_id, type')
-                      ->orderByRaw('YEAR(created_at), MONTH(created_at)');
+                $query->selectRaw("
+                DATE_FORMAT(created_at, '%Y-%m-01') as period,
+                product_id, type, SUM(quantity) as total_quantity
+            ")
+                    ->where('created_at', '>=', Carbon::now()->subMonths(12))
+                    ->groupByRaw("DATE_FORMAT(created_at, '%Y-%m-01'), product_id, type")
+                    ->orderByRaw("DATE_FORMAT(created_at, '%Y-%m-01')");
                 break;
-            default: // daily
+
+            default:
                 $query->selectRaw('DATE(created_at) as period, product_id, type, SUM(quantity) as total_quantity')
-                      ->where('created_at', '>=', Carbon::now()->subDays(30))
-                      ->groupByRaw('DATE(created_at), product_id, type')
-                      ->orderByRaw('DATE(created_at)');
+                    ->where('created_at', '>=', Carbon::now()->subDays(30))
+                    ->groupByRaw('DATE(created_at), product_id, type')
+                    ->orderByRaw('DATE(created_at)');
         }
-        
+
         $stockData = $query->get();
-        
-        // Group by category
+
         $categorizedData = [];
         foreach ($stockData as $data) {
             $categoryName = $data->product->category->name;
@@ -100,38 +116,38 @@ class DashboardController extends Controller
                     'adjustment' => 0,
                 ];
             }
-            
-            // Pastikan type exists dalam array, jika tidak ada maka inisialisasi dengan 0
+
             if (!isset($categorizedData[$categoryName][$data->type])) {
                 $categorizedData[$categoryName][$data->type] = 0;
             }
-            
+
             $categorizedData[$categoryName][$data->type] += $data->total_quantity;
         }
-        
+
         return $categorizedData;
     }
+
 
     private function getSalesHistory(Request $request)
     {
         return Sale::with(['cashier', 'saleItems.product'])
-                   ->orderBy('transaction_date', 'desc')
-                   ->paginate(20);
+            ->orderBy('transaction_date', 'desc')
+            ->paginate(20);
     }
 
     private function getLowStockProducts()
     {
         return Product::with('category')
-                      ->whereRaw('stock <= min_stock')
-                      ->where('is_active', true)
-                      ->get();
+            ->whereRaw('stock <= min_stock')
+            ->where('is_active', true)
+            ->get();
     }
 
     private function getSummaryStats()
     {
         $today = Carbon::today();
         $thisMonth = Carbon::now()->startOfMonth();
-        
+
         return [
             'today_sales' => Sale::whereDate('transaction_date', $today)->sum('total'),
             'today_transactions' => Sale::whereDate('transaction_date', $today)->count(),
@@ -145,21 +161,21 @@ class DashboardController extends Controller
     public function exportSales(Request $request)
     {
         $user = $request->user();
-        
+
         if ($user->isPegawai()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         $startDate = $request->get('start_date');
         $endDate = $request->get('end_date');
-        
+
         $query = Sale::with(['cashier', 'saleItems.product'])
-                     ->orderBy('transaction_date', 'desc');
-                     
+            ->orderBy('transaction_date', 'desc');
+
         if ($startDate && $endDate) {
             $query->whereBetween('transaction_date', [$startDate, $endDate]);
         }
-        
+
         $sales = $query->get();
 
         $filename = 'sales_export_' . date('Y-m-d') . '.csv';
@@ -168,10 +184,10 @@ class DashboardController extends Controller
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ];
 
-        $callback = function() use ($sales) {
+        $callback = function () use ($sales) {
             $file = fopen('php://output', 'w');
             fputcsv($file, ['Kode Transaksi', 'Tanggal', 'Kasir', 'Subtotal', 'Pajak', 'Diskon', 'Total', 'Metode Pembayaran', 'Catatan']);
-            
+
             foreach ($sales as $sale) {
                 fputcsv($file, [
                     $sale->code,

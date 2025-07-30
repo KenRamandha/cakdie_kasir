@@ -11,9 +11,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Models\Category;
 use App\Models\User;
+use App\Http\Controllers\Traits\ChecksPermissions;
 
 class SaleController extends Controller
 {
+    use ChecksPermissions;
+
     public function index(Request $request)
     {
         $query = Sale::with(['cashier', 'saleItems.product']);
@@ -55,7 +58,6 @@ class SaleController extends Controller
             foreach ($request->items as $item) {
                 $product = Product::where('code', $item['product_code'])->firstOrFail();
                 
-                // Check stock availability
                 if ($product->stock < $item['quantity']) {
                     throw new \Exception("Stock tidak mencukupi untuk produk {$product->name}. Stock tersedia: {$product->stock}");
                 }
@@ -219,9 +221,7 @@ class SaleController extends Controller
 
     public function deleteSale(Request $request, $code)
     {
-        if ($request->user()->isPegawai()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $this->checkOwnerPermission($request->user());
 
         return DB::transaction(function () use ($code, $request) {
             $sale = Sale::with('saleItems')->where('code', $code)->firstOrFail();

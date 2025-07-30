@@ -356,7 +356,7 @@ Route::middleware('auth:sanctum')->group(function () {
     | OWNER-ONLY SALES ROUTES
     |----------------------------------------------------------------------
     */
-    Route::middleware('role:pemilik')->group(function () {
+    Route::prefix('sales')->group(function () {
         /**
          * Delete Sale Transaction
          * DELETE /api/sales/{code}
@@ -437,7 +437,7 @@ Route::middleware('auth:sanctum')->group(function () {
     |----------------------------------------------------------------------
     */
     
-    Route::middleware('role:pemilik')->prefix('reports')->group(function () {
+    Route::prefix('reports')->group(function () {
         /**
          * Sales Report
          * GET /api/reports/sales
@@ -482,7 +482,7 @@ Route::middleware('auth:sanctum')->group(function () {
     |----------------------------------------------------------------------
     */
     
-    Route::middleware('role:pemilik')->prefix('users')->group(function () {
+    Route::prefix('users')->group(function () {
         /**
          * List All Users
          * GET /api/users

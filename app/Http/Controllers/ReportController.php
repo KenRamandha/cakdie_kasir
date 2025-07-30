@@ -7,14 +7,15 @@ use App\Models\SaleItem;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Traits\ChecksPermissions;
 
 class ReportController extends Controller
 {
+    use ChecksPermissions;
+
     public function salesReport(Request $request)
     {
-        if ($request->user()->role !== 'pemilik') {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $this->checkOwnerPermission($request->user());
 
         $startDate = $request->get('start_date', Carbon::now()->startOfMonth());
         $endDate = $request->get('end_date', Carbon::now()->endOfMonth());
@@ -41,20 +42,22 @@ class ReportController extends Controller
 
     public function topProducts(Request $request)
     {
+        $this->checkOwnerPermission($request->user());
+
         $startDate = $request->get('start_date', Carbon::now()->startOfMonth());
         $endDate = $request->get('end_date', Carbon::now()->endOfMonth());
 
         $topProducts = SaleItem::select('product_id', 
-                                       DB::raw('SUM(quantity) as total_sold'),
-                                       DB::raw('SUM(total_price) as total_revenue'))
-                              ->with('product.category')
-                              ->whereHas('sale', function($query) use ($startDate, $endDate) {
-                                  $query->whereBetween('transaction_date', [$startDate, $endDate]);
-                              })
-                              ->groupBy('product_id')
-                              ->orderBy('total_sold', 'desc')
-                              ->limit(10)
-                              ->get();
+                                     DB::raw('SUM(quantity) as total_sold'),
+                                     DB::raw('SUM(total_price) as total_revenue'))
+                            ->with('product.category')
+                            ->whereHas('sale', function($query) use ($startDate, $endDate) {
+                                $query->whereBetween('transaction_date', [$startDate, $endDate]);
+                            })
+                            ->groupBy('product_id')
+                            ->orderBy('total_sold', 'desc')
+                            ->limit(10)
+                            ->get();
 
         return response()->json($topProducts);
     }

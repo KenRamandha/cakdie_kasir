@@ -8,11 +8,16 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use App\Http\Controllers\Traits\ChecksPermissions;
 
 class UserController extends Controller
 {
-    public function index()
+    use ChecksPermissions;
+
+    public function index(Request $request)
     {
+        $this->checkOwnerPermission($request->user());
+        
         $users = User::select('user_id', 'name', 'username', 'email', 'role', 'is_active', 'created_at')
                      ->orderBy('created_at', 'desc')
                      ->get();
@@ -22,6 +27,8 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        $this->checkOwnerPermission($request->user());
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'username' => 'required|string|max:255|unique:users,username',
@@ -34,9 +41,6 @@ class UserController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Get current authenticated user
-        $currentUser = $request->user();
-
         $user = User::create([
             'user_id' => 'USR-' . Str::random(8),
             'name' => $request->name,
@@ -45,7 +49,7 @@ class UserController extends Controller
             'password' => Hash::make($request->password),
             'role' => $request->role,
             'is_active' => true,
-            'created_by' => $currentUser->user_id ?? $currentUser->id, // Fallback to id if user_id doesn't exist
+            'created_by' => $request->user()->user_id,
         ]);
 
         return response()->json([
@@ -54,8 +58,10 @@ class UserController extends Controller
         ], 201);
     }
 
-    public function show($user_id)
+    public function show(Request $request, $user_id)
     {
+        $this->checkOwnerPermission($request->user());
+
         $user = User::select('user_id', 'name', 'username', 'email', 'role', 'is_active', 'created_at')
                     ->where('user_id', $user_id)
                     ->firstOrFail();
@@ -65,6 +71,8 @@ class UserController extends Controller
 
     public function update(Request $request, $user_id)
     {
+        $this->checkOwnerPermission($request->user());
+
         $user = User::where('user_id', $user_id)->firstOrFail();
         
         $validator = Validator::make($request->all(), [
@@ -90,15 +98,12 @@ class UserController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Get current authenticated user
-        $currentUser = $request->user();
-
         $updateData = [
             'name' => $request->name,
             'username' => $request->username,
             'email' => $request->email,
             'role' => $request->role,
-            'updated_by' => $currentUser->user_id ?? $currentUser->id, // Fallback to id if user_id doesn't exist
+            'updated_by' => $request->user()->user_id,
         ];
 
         if ($request->filled('password')) {
@@ -115,20 +120,18 @@ class UserController extends Controller
 
     public function destroy(Request $request, $user_id)
     {
+        $this->checkOwnerPermission($request->user());
+
         $user = User::where('user_id', $user_id)->firstOrFail();
         
-        // Get current authenticated user
-        $currentUser = $request->user();
-        $currentUserId = $currentUser->user_id ?? $currentUser->id;
-        
         // Don't allow deleting own account
-        if ($user->user_id === $currentUserId || $user->id === $currentUser->id) {
+        if ($user->user_id === $request->user()->user_id) {
             return response()->json(['message' => 'Cannot delete your own account'], 422);
         }
         
         $user->update([
             'is_active' => false,
-            'updated_by' => $currentUserId
+            'updated_by' => $request->user()->user_id
         ]);
         
         return response()->json(['message' => 'User deactivated successfully']);
@@ -136,20 +139,18 @@ class UserController extends Controller
 
     public function toggleStatus(Request $request, $user_id)
     {
+        $this->checkOwnerPermission($request->user());
+
         $user = User::where('user_id', $user_id)->firstOrFail();
         
-        // Get current authenticated user
-        $currentUser = $request->user();
-        $currentUserId = $currentUser->user_id ?? $currentUser->id;
-        
         // Don't allow deactivating own account
-        if ($user->user_id === $currentUserId || $user->id === $currentUser->id) {
+        if ($user->user_id === $request->user()->user_id) {
             return response()->json(['message' => 'Cannot deactivate your own account'], 422);
         }
         
         $user->update([
             'is_active' => !$user->is_active,
-            'updated_by' => $currentUserId,
+            'updated_by' => $request->user()->user_id,
         ]);
         
         $status = $user->is_active ? 'activated' : 'deactivated';

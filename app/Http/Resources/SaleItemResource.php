@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -15,12 +16,12 @@ class SaleItemResource extends JsonResource
             'total_price' => $this->total_price,
             'discount' => $this->discount,
             'product' => [
-                'id' => $this->product->id,
+                'id' => $this->product->code,
                 'code' => $this->product->code,
                 'name' => $this->product->name,
                 'unit' => $this->product->unit,
                 'category' => [
-                    'id' => $this->product->category->id,
+                    'id' => $this->product->category->code,
                     'name' => $this->product->category->name,
                 ],
             ],

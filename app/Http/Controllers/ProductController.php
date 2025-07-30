@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Product;
@@ -12,14 +13,14 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $query = Product::with('category')->where('is_active', true);
-        
+
         if ($request->has('category_code')) {
             $category = Category::where('code', $request->category_code)->first();
             if ($category) {
                 $query->where('category_id', $category->id);
             }
         }
-        
+
         return response()->json($query->get());
     }
 
@@ -39,7 +40,7 @@ class ProductController extends Controller
             'code' => $request->code,
             'name' => $request->name,
             'description' => $request->description,
-            'category_id' => $category->id,
+            'category_id' => $category->code,
             'price' => $request->price,
             'cost_price' => $request->cost_price,
             'stock' => $request->stock,
@@ -52,7 +53,7 @@ class ProductController extends Controller
         if ($request->stock > 0) {
             StockLog::create([
                 'code' => 'STK-' . Str::random(8),
-                'product_id' => $product->id,
+                'product_id' => $product->code,
                 'type' => 'in',
                 'quantity' => $request->stock,
                 'stock_before' => 0,
@@ -74,9 +75,9 @@ class ProductController extends Controller
     public function update(Request $request, $code)
     {
         $product = Product::with('category')->where('code', $code)->firstOrFail();
-        
+
         $request->validate([
-            'code' => 'required|unique:products,code,' . $product->id,
+            'code' => 'required|unique:products,code,' . $product->code,
             'name' => 'required',
             'category_code' => 'required|exists:categories,code',
             'price' => 'required|numeric|min:0',
@@ -88,7 +89,7 @@ class ProductController extends Controller
             'code' => $request->code,
             'name' => $request->name,
             'description' => $request->description,
-            'category_id' => $category->id,
+            'category_id' => $category->code,
             'price' => $request->price,
             'cost_price' => $request->cost_price,
             'min_stock' => $request->min_stock ?? 0,
@@ -102,7 +103,7 @@ class ProductController extends Controller
     public function updateStock(Request $request, $code)
     {
         $product = Product::where('code', $code)->firstOrFail();
-        
+
         $request->validate([
             'quantity' => 'required|integer',
             'type' => 'required|in:in,out,adjustment',
@@ -111,7 +112,7 @@ class ProductController extends Controller
 
         $stockBefore = $product->stock;
         $quantity = $request->quantity;
-        
+
         switch ($request->type) {
             case 'in':
                 $stockAfter = $stockBefore + $quantity;
@@ -129,7 +130,7 @@ class ProductController extends Controller
 
         StockLog::create([
             'code' => 'STK-' . Str::random(8),
-            'product_id' => $product->id,
+            'product_id' => $product->code,
             'type' => $request->type,
             'quantity' => abs($quantity),
             'stock_before' => $stockBefore,

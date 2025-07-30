@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -20,7 +21,7 @@ class SaleResource extends JsonResource
             'notes' => $this->notes,
             'transaction_date' => $this->transaction_date,
             'cashier' => [
-                'id' => $this->cashier->id,
+                'id' => $this->cashier->code,
                 'name' => $this->cashier->name,
             ],
             'items' => SaleItemResource::collection($this->whenLoaded('saleItems')),

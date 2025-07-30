@@ -157,7 +157,7 @@ class ProductSeeder extends Seeder
 
             Product::create([
                 ...$productData,
-                'category_id' => $category->id,
+                'category_id' => $category->code,
                 'is_active' => true,
                 'created_by' => $user->user_id,
                 'updated_by' => $user->user_id,

@@ -79,7 +79,9 @@ class DashboardController extends Controller
     {
         $period = $request->get('period', 'daily');
 
-        $query = StockLog::with(['product.category']);
+        $query = StockLog::with(['product' => function ($query) {
+            $query->with('category');
+        }]);
 
         switch ($period) {
             case 'weekly':
@@ -113,17 +115,23 @@ class DashboardController extends Controller
 
         $categorizedData = [];
         foreach ($stockData as $data) {
+            if (!$data->product || !$data->product->category) {
+                continue;
+            }
+
+            $categoryCode = $data->product->category->code;
             $categoryName = $data->product->category->name;
 
-            if (!isset($categorizedData[$categoryName])) {
-                $categorizedData[$categoryName] = [
+            if (!isset($categorizedData[$categoryCode])) {
+                $categorizedData[$categoryCode] = [
+                    'name' => $categoryName,
                     'in' => 0,
                     'out' => 0,
                     'adjustment' => 0,
                 ];
             }
 
-            $categorizedData[$categoryName][$data->type] = (float) ($categorizedData[$categoryName][$data->type] ?? 0) + (float) $data->total_quantity;
+            $categorizedData[$categoryCode][$data->type] += (float) $data->total_quantity;
         }
 
         return $categorizedData;

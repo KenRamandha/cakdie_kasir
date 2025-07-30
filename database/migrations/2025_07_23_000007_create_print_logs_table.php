@@ -8,7 +8,8 @@ return new class extends Migration {
         Schema::create('print_logs', function (Blueprint $table) {
             $table->id();
             $table->string('code')->unique();
-            $table->foreignId('sale_id')->constrained('sales')->onDelete('cascade');
+            $table->string('sale_id');
+            $table->foreign('sale_id')->references('code')->on('sales')->onDelete('restrict');
             $table->string('printed_by')->nullable();
             $table->foreign('printed_by')->references('user_id')->on('users')->onDelete('set null');
             $table->timestamp('printed_at')->useCurrent();

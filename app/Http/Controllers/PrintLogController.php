@@ -21,7 +21,7 @@ class PrintLogController extends Controller
         $sale = Sale::where('code', $request->sale_code)->firstOrFail();
 
         return PrintLog::create([
-            'sale_id' => $sale->id,
+            'sale_id' => $sale->code,
             'user_id' => $request->user()->user_id,
         ]);
     }

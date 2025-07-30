@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Sale;
@@ -20,20 +21,20 @@ class SaleController extends Controller
     public function index(Request $request)
     {
         $query = Sale::with(['cashier', 'saleItems.product']);
-        
+
         if ($request->has('start_date') && $request->has('end_date')) {
             $query->whereBetween('transaction_date', [$request->start_date, $request->end_date]);
         }
-        
+
         if ($request->has('cashier_user_id')) {
             $cashier = User::where('user_id', $request->cashier_user_id)->first();
             if ($cashier) {
-                $query->where('cashier_id', $cashier->id);
+                $query->where('cashier_id', $cashier->user_id);
             }
         }
-        
+
         $sales = $query->orderBy('transaction_date', 'desc')->paginate(20);
-        
+
         return response()->json($sales);
     }
 
@@ -57,14 +58,14 @@ class SaleController extends Controller
 
             foreach ($request->items as $item) {
                 $product = Product::where('code', $item['product_code'])->firstOrFail();
-                
+
                 if ($product->stock < $item['quantity']) {
                     throw new \Exception("Stock tidak mencukupi untuk produk {$product->name}. Stock tersedia: {$product->stock}");
                 }
 
                 $itemDiscount = $item['discount'] ?? 0;
                 $totalPrice = ($product->price * $item['quantity']) - $itemDiscount;
-                $subtotal += $totalPrice + $itemDiscount; 
+                $subtotal += $totalPrice + $itemDiscount;
 
                 $saleItems[] = [
                     'product' => $product,
@@ -87,24 +88,24 @@ class SaleController extends Controller
 
             $sale = Sale::create([
                 'code' => 'TRX-' . date('Ymd') . '-' . Str::random(6),
-                'subtotal' => $subtotal - array_sum(array_column($saleItems, 'discount')), 
+                'subtotal' => $subtotal - array_sum(array_column($saleItems, 'discount')),
                 'tax' => $tax,
                 'discount' => $discount,
                 'total' => $total,
                 'cash_received' => $request->cash_received,
-                'change_amount' => $request->payment_method === 'cash' ? 
+                'change_amount' => $request->payment_method === 'cash' ?
                     ($request->cash_received - $total) : 0,
                 'payment_method' => $request->payment_method,
                 'notes' => $request->notes,
-                'cashier_id' => $request->user()->id,
+                'cashier_id' => $request->user()->user_id,
                 'transaction_date' => now(),
             ]);
 
             foreach ($saleItems as $item) {
                 SaleItem::create([
                     'code' => 'ITM-' . Str::random(8),
-                    'sale_id' => $sale->id,
-                    'product_id' => $item['product']->id,
+                    'sale_id' => $sale->code,
+                    'product_id' => $item['product']->code,
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'total_price' => $item['total_price'],
@@ -114,19 +115,19 @@ class SaleController extends Controller
                 $product = $item['product'];
                 $stockBefore = $product->stock;
                 $stockAfter = $stockBefore - $item['quantity'];
-                
+
                 $product->update(['stock' => $stockAfter]);
 
                 StockLog::create([
                     'code' => 'STK-' . Str::random(8),
-                    'product_id' => $product->id,
+                    'product_id' => $product->code,
                     'type' => 'out',
                     'quantity' => $item['quantity'],
                     'stock_before' => $stockBefore,
                     'stock_after' => $stockAfter,
                     'notes' => 'Sale transaction: ' . $sale->code,
                     'reference_type' => 'sale',
-                    'reference_id' => $sale->id,
+                    'reference_id' => $sale->code,
                     'created_by' => $request->user()->user_id,
                 ]);
             }
@@ -138,38 +139,38 @@ class SaleController extends Controller
     public function show($code)
     {
         $sale = Sale::with(['cashier', 'saleItems.product'])
-                   ->where('code', $code)
-                   ->firstOrFail();
+            ->where('code', $code)
+            ->firstOrFail();
         return response()->json($sale);
     }
 
     public function getProductsByCategory(Request $request)
     {
         $categoryCode = $request->get('category_code');
-        
+
         $query = Product::with('category')->where('is_active', true)->where('stock', '>', 0);
-        
+
         if ($categoryCode) {
             $category = Category::where('code', $categoryCode)->first();
             if ($category) {
-                $query->where('category_id', $category->id);
+                $query->where('category_id', $category->code);
             }
         }
-        
+
         return response()->json($query->get());
     }
 
     public function printReceipt(Request $request, $code)
     {
         $sale = Sale::with(['cashier', 'saleItems.product'])
-                   ->where('code', $code)
-                   ->firstOrFail();
-        
-        $isReprint = PrintLog::where('sale_id', $sale->id)->exists();
-        
+            ->where('code', $code)
+            ->firstOrFail();
+
+        $isReprint = PrintLog::where('sale_id', $sale->code)->exists();
+
         PrintLog::create([
             'code' => 'PRT-' . Str::random(8),
-            'sale_id' => $sale->id,
+            'sale_id' => $sale->code,
             'printed_by' => $request->user()->user_id,
             'printed_at' => now(),
             'printer_name' => $request->printer_name ?? 'Default Printer',
@@ -225,34 +226,34 @@ class SaleController extends Controller
 
         return DB::transaction(function () use ($code, $request) {
             $sale = Sale::with('saleItems')->where('code', $code)->firstOrFail();
-            
+
             foreach ($sale->saleItems as $item) {
                 $product = Product::find($item->product_id);
                 if ($product) {
                     $stockBefore = $product->stock;
                     $stockAfter = $stockBefore + $item->quantity;
-                    
+
                     $product->update(['stock' => $stockAfter]);
-                    
+
                     StockLog::create([
                         'code' => 'STK-' . Str::random(8),
-                        'product_id' => $product->id,
+                        'product_id' => $product->code,
                         'type' => 'in',
                         'quantity' => $item->quantity,
                         'stock_before' => $stockBefore,
                         'stock_after' => $stockAfter,
                         'notes' => 'Sale cancellation: ' . $sale->code,
                         'reference_type' => 'sale_cancellation',
-                        'reference_id' => $sale->id,
+                        'reference_id' => $sale->code,
                         'created_by' => $request->user()->user_id,
                     ]);
                 }
             }
-            
+
             $sale->saleItems()->delete();
             $sale->printLogs()->delete();
             $sale->delete();
-            
+
             return response()->json(['message' => 'Sale deleted successfully']);
         });
     }

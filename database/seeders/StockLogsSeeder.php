@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -23,7 +24,7 @@ class StockLogsSeeder extends Seeder
         foreach ($products as $product) {
             StockLog::create([
                 'code' => 'STK-' . strtoupper(Str::random(8)),
-                'product_id' => $product->id,
+                'product_id' => $product->code,
                 'type' => 'in',
                 'quantity' => $product->stock,
                 'stock_before' => 0,
@@ -47,7 +48,7 @@ class StockLogsSeeder extends Seeder
                         $notes = 'Stock replenishment';
                         break;
                     case 'out':
-                        $quantity = min($quantity, $stockBefore); 
+                        $quantity = min($quantity, $stockBefore);
                         $stockAfter = $stockBefore - $quantity;
                         $notes = 'Stock usage/sale';
                         break;
@@ -60,7 +61,7 @@ class StockLogsSeeder extends Seeder
 
                 StockLog::create([
                     'code' => 'STK-' . strtoupper(Str::random(8)),
-                    'product_id' => $product->id,
+                    'product_id' => $product->code,
                     'type' => $type,
                     'quantity' => $quantity,
                     'stock_before' => $stockBefore,

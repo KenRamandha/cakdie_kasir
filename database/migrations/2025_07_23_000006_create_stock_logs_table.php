@@ -8,14 +8,15 @@ return new class extends Migration {
         Schema::create('stock_logs', function (Blueprint $table) {
             $table->id();
             $table->string('code')->unique();
-            $table->foreignId('product_id')->constrained('products')->onDelete('restrict');
+            $table->string('product_id');
+            $table->foreign('product_id')->references('code')->on('products')->onDelete('restrict');
             $table->enum('type', ['in', 'out', 'adjustment']); 
             $table->integer('quantity');
             $table->integer('stock_before');
             $table->integer('stock_after');
             $table->text('notes')->nullable();
             $table->string('reference_type')->nullable(); 
-            $table->unsignedBigInteger('reference_id')->nullable(); 
+            $table->string('reference_id')->nullable();
             $table->string('created_by')->nullable();
             $table->foreign('created_by')->references('user_id')->on('users')->onDelete('set null');
             $table->timestamps();

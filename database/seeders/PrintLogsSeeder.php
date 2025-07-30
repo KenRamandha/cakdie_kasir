@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -22,7 +23,7 @@ class PrintLogsSeeder extends Seeder
         foreach ($sales->take(4) as $sale) {
             PrintLog::create([
                 'code' => 'PRT-' . strtoupper(Str::random(8)),
-                'sale_id' => $sale->id,
+                'sale_id' => $sale->code,
                 'printed_by' => $users->random()->user_id,
                 'printed_at' => $sale->transaction_date->addMinutes(5),
                 'printer_name' => collect(['EPSON-58MM', 'CANON-80MM', 'HP-LaserJet'])->random(),
@@ -33,7 +34,7 @@ class PrintLogsSeeder extends Seeder
             if (rand(0, 1)) {
                 PrintLog::create([
                     'code' => 'PRT-' . strtoupper(Str::random(8)),
-                    'sale_id' => $sale->id,
+                    'sale_id' => $sale->code,
                     'printed_by' => $users->random()->user_id,
                     'printed_at' => $sale->transaction_date->addMinutes(rand(10, 60)),
                     'printer_name' => collect(['EPSON-58MM', 'CANON-80MM', 'HP-LaserJet'])->random(),

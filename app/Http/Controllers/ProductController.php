@@ -77,10 +77,15 @@ class ProductController extends Controller
         $product = Product::with('category')->where('code', $code)->firstOrFail();
 
         $request->validate([
-            'code' => 'required|unique:products,code,' . $product->code,
-            'name' => 'required',
+            'code' => 'required|unique:products,code,' . $product->id,
+            'name' => 'required|string|max:255',
             'category_code' => 'required|exists:categories,code',
             'price' => 'required|numeric|min:0',
+            'cost_price' => 'nullable|numeric|min:0',
+            'stock' => 'nullable|integer|min:0',
+            'min_stock' => 'nullable|integer|min:0',
+            'unit' => 'nullable|string|max:20',
+            'description' => 'nullable|string',
         ]);
 
         $category = Category::where('code', $request->category_code)->firstOrFail();
@@ -92,6 +97,7 @@ class ProductController extends Controller
             'category_id' => $category->code,
             'price' => $request->price,
             'cost_price' => $request->cost_price,
+            'stock' => $request->stock ?? 0,
             'min_stock' => $request->min_stock ?? 0,
             'unit' => $request->unit ?? 'pcs',
             'updated_by' => $request->user()->user_id,

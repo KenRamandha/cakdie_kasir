@@ -90,6 +90,9 @@ Route::middleware('auth:sanctum')->group(function () {
      * Access: All authenticated users (different data for pemilik vs pegawai)
      */
     Route::get('/dashboard', [DashboardController::class, 'index']);
+
+
+    Route::get('/dashboard/export-sales/check', [DashboardController::class, 'checkExportSize']);
     
     /**
      * Export Sales Data

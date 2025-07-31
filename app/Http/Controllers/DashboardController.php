@@ -7,6 +7,8 @@ use App\Models\StockLog;
 use App\Models\Product;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use App\Exports\SalesExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class DashboardController extends Controller
 {
@@ -178,44 +180,45 @@ class DashboardController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $startDate = $request->get('start_date');
-        $endDate = $request->get('end_date');
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'format' => 'sometimes|in:xlsx,csv,pdf'
+        ]);
+
+        $format = $request->format ?? 'xlsx';
+        $startDate = $request->start_date;
+        $endDate = $request->end_date;
 
         $query = Sale::with(['cashier', 'saleItems.product'])
+            ->whereBetween('transaction_date', [$startDate, $endDate])
             ->orderBy('transaction_date', 'desc');
 
-        if ($startDate && $endDate) {
-            $query->whereBetween('transaction_date', [$startDate, $endDate]);
-        }
-
         $sales = $query->get();
+        $filename = 'sales_export_' . date('Y-m-d') . '_' . $startDate . '_to_' . $endDate;
 
-        $filename = 'sales_export_' . date('Y-m-d') . '.csv';
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ];
+        switch ($format) {
+            case 'csv':
+                return Excel::download(new SalesExport($sales), "$filename.csv", \Maatwebsite\Excel\Excel::CSV);
+            case 'pdf':
+                return Excel::download(new SalesExport($sales), "$filename.pdf", \Maatwebsite\Excel\Excel::DOMPDF);
+            default:
+                return Excel::download(new SalesExport($sales), "$filename.xlsx");
+        }
+    }
 
-        $callback = function () use ($sales) {
-            $file = fopen('php://output', 'w');
-            fputcsv($file, ['Kode Transaksi', 'Tanggal', 'Kasir', 'Subtotal', 'Pajak', 'Diskon', 'Total', 'Metode Pembayaran', 'Catatan']);
+    public function checkExportSize(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+        ]);
 
-            foreach ($sales as $sale) {
-                fputcsv($file, [
-                    $sale->code,
-                    $sale->transaction_date->format('Y-m-d H:i:s'),
-                    $sale->cashier->name,
-                    $sale->subtotal,
-                    $sale->tax,
-                    $sale->discount,
-                    $sale->total,
-                    $sale->payment_method,
-                    $sale->notes
-                ]);
-            }
-            fclose($file);
-        };
+        $count = Sale::whereBetween('transaction_date', [
+            $request->start_date,
+            $request->end_date
+        ])->count();
 
-        return response()->stream($callback, 200, $headers);
+        return response()->json(['count' => $count]);
     }
 }

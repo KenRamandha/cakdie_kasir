@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             SaleItemSeeder::class,
             StockLogsSeeder::class,
             PrintLogsSeeder::class,
+            CompanySettingSeeder::class,
         ]);
         
         $this->command->info('All seeders completed successfully!');

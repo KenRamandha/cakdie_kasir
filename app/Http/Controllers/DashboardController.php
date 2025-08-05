@@ -187,15 +187,15 @@ class DashboardController extends Controller
         ]);
 
         $format = $request->format ?? 'xlsx';
-        $startDate = $request->start_date;
-        $endDate = $request->end_date;
+        $startDate = Carbon::parse($request->start_date)->startOfDay();
+        $endDate = Carbon::parse($request->end_date)->endOfDay();
 
         $query = Sale::with(['cashier', 'saleItems.product'])
             ->whereBetween('transaction_date', [$startDate, $endDate])
             ->orderBy('transaction_date', 'desc');
 
         $sales = $query->get();
-        $filename = 'sales_export_' . date('Y-m-d') . '_' . $startDate . '_to_' . $endDate;
+        $filename = 'sales_export_' . date('Y-m-d') . '_' . $startDate->format('Y-m-d') . '_to_' . $endDate->format('Y-m-d');
 
         switch ($format) {
             case 'csv':
@@ -214,10 +214,10 @@ class DashboardController extends Controller
             'end_date' => 'required|date|after_or_equal:start_date',
         ]);
 
-        $count = Sale::whereBetween('transaction_date', [
-            $request->start_date,
-            $request->end_date
-        ])->count();
+        $startDate = Carbon::parse($request->start_date)->startOfDay();
+        $endDate = Carbon::parse($request->end_date)->endOfDay();
+
+        $count = Sale::whereBetween('transaction_date', [$startDate, $endDate])->count();
 
         return response()->json(['count' => $count]);
     }

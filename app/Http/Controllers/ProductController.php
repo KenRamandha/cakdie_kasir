@@ -47,9 +47,9 @@ class ProductController extends Controller
             'min_stock' => $request->min_stock ?? 0,
             'unit' => $request->unit ?? 'pcs',
             'created_by' => $request->user()->user_id,
+            'updated_by' => $request->user()->user_id,
         ]);
 
-        // Create stock log for initial stock
         if ($request->stock > 0) {
             StockLog::create([
                 'code' => 'STK-' . Str::random(8),
@@ -146,5 +146,17 @@ class ProductController extends Controller
         ]);
 
         return response()->json($product);
+    }
+
+    public function destroy($code)
+    {
+        try {
+            $product = Product::where('code', $code)->firstOrFail();
+            $product->update(['is_active' => false]);
+
+            return response()->json(['message' => 'Category deactivated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to deactivate product'], 500);
+        }
     }
 }

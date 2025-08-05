@@ -17,8 +17,8 @@ class ReportController extends Controller
     {
         $this->checkOwnerPermission($request->user());
 
-        $startDate = $request->get('start_date', Carbon::now()->startOfMonth());
-        $endDate = $request->get('end_date', Carbon::now()->endOfMonth());
+        $startDate = Carbon::parse($request->get('start_date', Carbon::now()->startOfMonth()))->startOfDay();
+        $endDate = Carbon::parse($request->get('end_date', Carbon::now()->endOfMonth()))->endOfDay();
 
         $report = Sale::with('saleItems.product')
                      ->whereBetween('transaction_date', [$startDate, $endDate])
@@ -44,8 +44,8 @@ class ReportController extends Controller
     {
         $this->checkOwnerPermission($request->user());
 
-        $startDate = $request->get('start_date', Carbon::now()->startOfMonth());
-        $endDate = $request->get('end_date', Carbon::now()->endOfMonth());
+        $startDate = Carbon::parse($request->get('start_date', Carbon::now()->startOfMonth()))->startOfDay();
+        $endDate = Carbon::parse($request->get('end_date', Carbon::now()->endOfMonth()))->endOfDay();
 
         $topProducts = SaleItem::select('product_id', 
                                      DB::raw('SUM(quantity) as total_sold'),

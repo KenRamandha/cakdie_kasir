@@ -13,6 +13,7 @@ use Illuminate\Support\Str;
 use App\Models\Category;
 use App\Models\User;
 use App\Http\Controllers\Traits\ChecksPermissions;
+use Carbon\Carbon;
 
 class SaleController extends Controller
 {
@@ -23,7 +24,9 @@ class SaleController extends Controller
         $query = Sale::with(['cashier', 'saleItems.product']);
 
         if ($request->has('start_date') && $request->has('end_date')) {
-            $query->whereBetween('transaction_date', [$request->start_date, $request->end_date]);
+            $startDate = Carbon::parse($request->start_date)->startOfDay();
+            $endDate = Carbon::parse($request->end_date)->endOfDay();
+            $query->whereBetween('transaction_date', [$startDate, $endDate]);
         }
 
         if ($request->has('cashier_user_id')) {

@@ -13,6 +13,7 @@ use App\Http\Controllers\PrintLogController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\CompanySettingController;
 
+
 /*
 |--------------------------------------------------------------------------
 | API Routes

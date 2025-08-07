@@ -86,15 +86,18 @@ class CategoryController extends Controller
             $category = Category::where('code', $code)->firstOrFail();
 
             $validated = $request->validate([
-                'code' => 'required|unique:categories,code,'.$category->code,
+                'code' => 'required|unique:categories,code,' . $category->code . ',code',
                 'name' => 'required',
             ]);
 
             $updateData = [
-                'code' => $request->code,
                 'name' => $request->name,
                 'description' => $request->description ?? $category->description,
             ];
+
+            if ($request->code !== $category->code) {
+                $updateData['code'] = $request->code;
+            }
 
             if ($request->user()) {
                 $updateData['updated_by'] = $request->user()->user_id;

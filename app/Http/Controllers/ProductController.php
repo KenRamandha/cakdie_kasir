@@ -112,7 +112,7 @@ class ProductController extends Controller
             $product = Product::with('category')->where('code', $code)->firstOrFail();
 
             $request->validate([
-                'code' => 'required|unique:products,code,' . $product->code,
+                'code' => 'required|unique:products,code,' . $product->code . ',code',
                 'name' => 'required|string|max:255',
                 'category_code' => 'required|exists:categories,code',
                 'price' => 'required|numeric|min:0',
@@ -125,8 +125,7 @@ class ProductController extends Controller
 
             $category = Category::where('code', $request->category_code)->firstOrFail();
 
-            $product->update([
-                'code' => $request->code,
+            $updateData = [
                 'name' => $request->name,
                 'description' => $request->description,
                 'category_id' => $category->code,
@@ -136,7 +135,13 @@ class ProductController extends Controller
                 'min_stock' => $request->min_stock ?? $product->min_stock,
                 'unit' => $request->unit ?? $product->unit,
                 'updated_by' => $request->user()->user_id,
-            ]);
+            ];
+
+            if ($request->code !== $product->code) {
+                $updateData['code'] = $request->code;
+            }
+
+            $product->update($updateData);
 
             return response()->json($product->load('category'));
         } catch (ValidationException $e) {

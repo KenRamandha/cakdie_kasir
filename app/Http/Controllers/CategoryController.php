@@ -5,13 +5,23 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class CategoryController extends Controller
 {
     public function index()
     {
-        $categories = Category::where('is_active', true)->get();
-        return response()->json($categories);
+        try {
+            $categories = Category::where('is_active', true)->get();
+            return response()->json($categories);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mengambil data kategori: ' . $e->getMessage(),
+                'errors' => [
+                    'server' => [$e->getMessage()]
+                ]
+            ], 500);
+        }
     }
 
     public function store(Request $request)
@@ -39,17 +49,18 @@ class CategoryController extends Controller
             $category = Category::create($categoryData);
 
             return response()->json($category, 201);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::error('Validation error: ' . $e->getMessage());
+        } catch (ValidationException $e) {
+            $firstError = collect($e->errors())->first()[0];
             return response()->json([
-                'message' => 'Validation failed',
+                'message' => 'Validasi gagal: ' . $firstError,
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
-            Log::error('Category creation error: ' . $e->getMessage());
             return response()->json([
-                'message' => 'Failed to create category',
-                'error' => $e->getMessage()
+                'message' => 'Gagal membuat kategori: ' . $e->getMessage(),
+                'errors' => [
+                    'server' => [$e->getMessage()]
+                ]
             ], 500);
         }
     }
@@ -60,8 +71,12 @@ class CategoryController extends Controller
             $category = Category::where('code', $code)->firstOrFail();
             return response()->json($category);
         } catch (\Exception $e) {
-            Log::error('Category not found: ' . $e->getMessage());
-            return response()->json(['message' => 'Category not found'], 404);
+            return response()->json([
+                'message' => 'Kategori tidak ditemukan',
+                'errors' => [
+                    'not_found' => ['Kategori yang diminta tidak dapat ditemukan']
+                ]
+            ], 404);
         }
     }
 
@@ -70,10 +85,15 @@ class CategoryController extends Controller
         try {
             $category = Category::where('code', $code)->firstOrFail();
 
+            $validated = $request->validate([
+                'code' => 'required|unique:categories,code,'.$category->code,
+                'name' => 'required',
+            ]);
+
             $updateData = [
                 'code' => $request->code,
                 'name' => $request->name,
-                'description' => $request->description ?? null,
+                'description' => $request->description ?? $category->description,
             ];
 
             if ($request->user()) {
@@ -83,9 +103,19 @@ class CategoryController extends Controller
             $category->update($updateData);
 
             return response()->json($category);
+        } catch (ValidationException $e) {
+            $firstError = collect($e->errors())->first()[0];
+            return response()->json([
+                'message' => 'Validasi gagal: ' . $firstError,
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
-            Log::error('Category update error: ' . $e->getMessage());
-            return response()->json(['message' => 'Failed to update category'], 500);
+            return response()->json([
+                'message' => 'Gagal memperbarui kategori: ' . $e->getMessage(),
+                'errors' => [
+                    'server' => [$e->getMessage()]
+                ]
+            ], 500);
         }
     }
 
@@ -95,10 +125,14 @@ class CategoryController extends Controller
             $category = Category::where('code', $code)->firstOrFail();
             $category->update(['is_active' => false]);
 
-            return response()->json(['message' => 'Category deactivated successfully']);
+            return response()->json(['message' => 'Kategori berhasil dinonaktifkan']);
         } catch (\Exception $e) {
-            Log::error('Category deactivation error: ' . $e->getMessage());
-            return response()->json(['message' => 'Failed to deactivate category'], 500);
+            return response()->json([
+                'message' => 'Gagal menonaktifkan kategori: ' . $e->getMessage(),
+                'errors' => [
+                    'server' => [$e->getMessage()]
+                ]
+            ], 500);
         }
     }
 }

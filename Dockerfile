@@ -5,12 +5,12 @@ RUN apk add --no-cache \
     curl \
     libpng-dev \
     libzip-dev \
-    libjpeg-dev \
+    jpeg-dev \
     freetype-dev \
     oniguruma-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) pdo pdo_mysql mbstring gd zip \
-    && apk del libpng-dev libzip-dev libjpeg-dev freetype-dev oniguruma-dev
+    && apk del libpng-dev libzip-dev jpeg-dev freetype-dev oniguruma-dev
 
 # Get latest Composer
 COPY --from=composer:2.5 /usr/bin/composer /usr/bin/composer

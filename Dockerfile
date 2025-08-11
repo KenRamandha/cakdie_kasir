@@ -5,16 +5,16 @@ RUN apk add --no-cache \
     curl \
     libpng-dev \
     libzip-dev \
-    zip \
-    unzip \
+    libjpeg-dev \
+    freetype-dev \
     oniguruma-dev \
-    && docker-php-ext-install pdo pdo_mysql mbstring gd zip \
-    && apk del libpng-dev libzip-dev oniguruma-dev
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) pdo pdo_mysql mbstring gd zip \
+    && apk del libpng-dev libzip-dev libjpeg-dev freetype-dev oniguruma-dev
 
 # Get latest Composer
 COPY --from=composer:2.5 /usr/bin/composer /usr/bin/composer
 
-# Configure PHP-FPM for low memory
 RUN echo "memory_limit = 256M" > /usr/local/etc/php/conf.d/memory.ini \
     && echo "pm = static" >> /usr/local/etc/php-fpm.d/www.conf \
     && echo "pm.max_children = 2" >> /usr/local/etc/php-fpm.d/www.conf \

@@ -1,14 +1,15 @@
-FROM php:8.1-fpm-alpine
+FROM php:8.4-fpm-alpine
 
-# Install only essential dependencies
+# Install essential dependencies and PHP extensions
 RUN apk add --no-cache \
     curl \
     libpng-dev \
+    libzip-dev \
     zip \
     unzip \
     oniguruma-dev \
-    && docker-php-ext-install pdo pdo_mysql mbstring gd \
-    && apk del libpng-dev oniguruma-dev
+    && docker-php-ext-install pdo pdo_mysql mbstring gd zip \
+    && apk del libpng-dev libzip-dev oniguruma-dev
 
 # Get latest Composer
 COPY --from=composer:2.5 /usr/bin/composer /usr/bin/composer

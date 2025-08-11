@@ -12,11 +12,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-        # - name: Log in to GHCR
-        # run: echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io --username ${{ github.actor }} --password-stdin
-
       - name: Build and push Docker image
         run: |
+          echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io --username ${{ github.actor }} --password-stdin
           docker build . --tag ghcr.io/kenramandha/cakdie_kasir:latest
           docker push ghcr.io/kenramandha/cakdie_kasir:latest
 

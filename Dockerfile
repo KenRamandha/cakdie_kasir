@@ -1,43 +1,46 @@
-FROM php:8.4-fpm-alpine
+# Use the official FrankenPHP image as the base
+FROM dunglas/frankenphp:latest
 
-# Install essential dependencies and PHP extensions
-RUN apk add --no-cache \
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
     curl \
     libpng-dev \
-    libzip-dev \
-    jpeg-dev \
-    freetype-dev \
-    oniguruma-dev \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) pdo pdo_mysql mbstring gd zip \
-    && apk del libpng-dev libzip-dev jpeg-dev freetype-dev oniguruma-dev
+    libonig-dev \
+    libxml2-dev \
+    zip \
+    unzip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Get latest Composer
-COPY --from=composer:2.5 /usr/bin/composer /usr/bin/composer
+# Install PHP extensions
+RUN install-php-extensions \
+    pdo_mysql \
+    mbstring \
+    exif \
+    pcntl \
+    bcmath \
+    gd \
+    opcache
 
-RUN echo "memory_limit = 256M" > /usr/local/etc/php/conf.d/memory.ini \
-    && echo "pm = static" >> /usr/local/etc/php-fpm.d/www.conf \
-    && echo "pm.max_children = 2" >> /usr/local/etc/php-fpm.d/www.conf \
-    && echo "pm.max_requests = 200" >> /usr/local/etc/php-fpm.d/www.conf
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Set working directory
-WORKDIR /var/www/html
+WORKDIR /app
 
-# Copy composer files first for better caching
-COPY composer.json composer.lock ./
+# Copy existing application directory contents
+COPY . /app
 
-# Install dependencies with memory optimization
-RUN composer install --no-dev --optimize-autoloader --no-scripts --no-cache
+# Install Laravel dependencies
+RUN composer install --optimize-autoloader --no-dev
 
-# Copy application code
-COPY . .
+# Set permissions
+RUN chown -R www-data:www-data /app \
+    && chmod -R 775 /app/storage /app/bootstrap/cache
 
-# Set permissions and optimize
-RUN chown -R www-data:www-data storage bootstrap/cache \
-    && php artisan config:cache \
-    && php artisan route:cache \
-    && php artisan view:cache
+# Expose port 8000
+EXPOSE 8000
 
-EXPOSE 9000
-
-CMD ["php-fpm"]
+# Run FrankenPHP server
+CMD ["php", "-d", "variables_order=EGPCS", "/app/artisan", "octane:start", "--server=frankenphp", "--host=0.0.0.0", "--port=8000"]

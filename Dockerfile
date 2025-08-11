@@ -21,7 +21,8 @@ RUN install-php-extensions \
     pcntl \
     bcmath \
     gd \
-    opcache
+    opcache \
+    zip
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

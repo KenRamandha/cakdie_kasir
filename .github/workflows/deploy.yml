@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  LARAVEL_IMAGE_NAME: ${{ github.repository | lower }}
+  LARAVEL_IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -36,6 +36,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+      
+      - name: Set lowercase repository name
+        id: repo_name_to_lower
+        run: echo "LOWERCASE_REPO_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Build and push Laravel image
         uses: docker/build-push-action@v5
@@ -43,8 +47,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.LARAVEL_IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.LARAVEL_IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ steps.repo_name_to_lower.outputs.LOWERCASE_REPO_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ steps.repo_name_to_lower.outputs.LOWERCASE_REPO_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  LARAVEL_IMAGE_NAME: ${{ github.repository }}/cakdie_kasir_backend
+  LARAVEL_IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:

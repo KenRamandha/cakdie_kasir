@@ -12,8 +12,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # - name: Log in to GHCR
-      #   run: echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io --username ${{ github.actor }} --password-stdin
+        # - name: Log in to GHCR
+        # run: echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io --username ${{ github.actor }} --password-stdin
 
       - name: Build and push Docker image
         run: |
@@ -27,6 +27,7 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io --username ${{ github.actor }} --password-stdin
             # Pull the latest image for this service
             docker pull ghcr.io/${{ github.repository }}:latest
             # Update the stack

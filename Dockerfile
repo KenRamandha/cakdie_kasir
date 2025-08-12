@@ -113,7 +113,7 @@ RUN chown -R www-data:www-data /var/www
 # Switch to the non-privileged user to run the application
 USER www-data
 
-php artisan storage:link
+RUN php artisan storage:link
 
 # Change the default command to run the entrypoint script
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

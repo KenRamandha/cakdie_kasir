@@ -14,11 +14,11 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'storage/*', 'sanctum/csrf-cookie', 'storage/company/*'],
+    'paths' => ['api/*', 'storage/*', 'sanctum/csrf-cookie', 'storage/company/*','*'],
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'], // Untuk development, di production ganti dengan domain Flutter web Anda
+    'allowed_origins' => ['*','https://api.borneowear.com/'], // Untuk development, di production ganti dengan domain Flutter web Anda
 
     'allowed_origins_patterns' => [],
 

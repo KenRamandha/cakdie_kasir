@@ -598,17 +598,3 @@ Route::middleware('auth:sanctum')->group(function () {
           Route::post('/', [CompanySettingController::class, 'saveSettings']);
      });
 });
-
-/*
-|--------------------------------------------------------------------------
-| ROUTE PATTERN CONSTRAINTS
-|--------------------------------------------------------------------------
-| 
-| Pattern: [A-Za-z0-9\-_]+
-| - Allows: Letters (a-z, A-Z), Numbers (0-9), Hyphens (-), Underscores (_)
-| - Examples: CAT-001, PRD-ABC123, USR-12345678, TRX-20250127-ABC123
-| 
-| This pattern ensures URLs are clean and predictable while preventing
-| injection attacks through route parameters.
-|
-*/

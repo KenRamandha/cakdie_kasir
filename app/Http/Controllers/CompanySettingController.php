@@ -122,7 +122,7 @@ class CompanySettingController extends Controller
                 'message' => 'Pengaturan perusahaan berhasil disimpan',
                 'data' => $settings,
                 'logo_url' => $settings->logo_path
-                    ? request()->getSchemeAndHttpHost() . Storage::url($settings->logo_path)
+                    ? Storage::url($settings->logo_path)
                     : null,
             ]);
         } catch (ValidationException $e) {

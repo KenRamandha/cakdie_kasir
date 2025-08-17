@@ -100,7 +100,7 @@ class CompanySettingController extends Controller
 
             if ($request->hasFile('logo')) {
                 if ($settings->logo_path) {
-                    Storage::delete($settings->logo_path);
+                    Storage::disk('public')->delete($settings->logo_path);
                 }
 
                 $file = $request->file('logo');

@@ -12,6 +12,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\PrintLogController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\CompanySettingController;
+use App\Http\Controllers\CustomerController;
 
 
 /*
@@ -596,5 +597,14 @@ Route::middleware('auth:sanctum')->group(function () {
      Route::prefix('company-settings')->group(function () {
           Route::get('/', [CompanySettingController::class, 'getFullSettings']);
           Route::post('/', [CompanySettingController::class, 'saveSettings']);
+     });
+
+     Route::prefix('customers')->group(function () {
+          Route::get('/', [CustomerController::class, 'index']);
+          Route::post('/', [CustomerController::class, 'store']);
+          Route::get('/{customer_id}', [CustomerController::class, 'show']);
+          Route::put('/{customer_id}', [CustomerController::class, 'update']);
+          Route::get('/{customer_id}/stats', [CustomerController::class, 'getPurchaseStats']);
+          Route::get('/{customer_id}/purchases', [CustomerController::class, 'getPurchaseHistory']);
      });
 });

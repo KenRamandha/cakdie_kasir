@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo; 
+use Illuminate\Database\Eloquent\Relations\HasMany; 
 
 class Sale extends Model
 {
@@ -20,7 +22,8 @@ class Sale extends Model
         'payment_method',
         'notes',
         'cashier_id',
-        'transaction_date',
+        'customer_id',
+        'transaction_date'
     ];
 
     protected $casts = [
@@ -33,18 +36,23 @@ class Sale extends Model
         'transaction_date' => 'datetime',
     ];
 
-    public function cashier()
+    public function cashier(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cashier_id', 'user_id');
     }
 
-    public function saleItems()
+    public function saleItems(): HasMany
     {
         return $this->hasMany(SaleItem::class, 'sale_id', 'code');
     }
 
-    public function printLogs()
+    public function printLogs(): HasMany
     {
         return $this->hasMany(PrintLog::class, 'sale_id', 'code');
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class, 'customer_id', 'customer_id');
     }
 }

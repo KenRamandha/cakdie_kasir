@@ -7,6 +7,7 @@ use App\Models\SaleItem;
 use App\Models\Product;
 use App\Models\StockLog;
 use App\Models\PrintLog;
+use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -26,7 +27,7 @@ class SaleController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = Sale::with(['cashier', 'saleItems.product']);
+            $query = Sale::with(['cashier', 'saleItems.product', 'customer']);
 
             if ($request->has('start_date') && $request->has('end_date')) {
                 $startDate = Carbon::parse($request->start_date)->startOfDay();
@@ -67,6 +68,8 @@ class SaleController extends Controller
                 'tax' => 'nullable|numeric|min:0',
                 'discount' => 'nullable|numeric|min:0',
                 'notes' => 'nullable|string',
+                'customer_phone' => 'nullable|string',
+                'customer_name' => 'required_with:customer_phone|string',
             ]);
 
             return DB::transaction(function () use ($request) {
@@ -113,6 +116,17 @@ class SaleController extends Controller
                     }
                 }
 
+                $customer = null;
+                if ($request->customer_phone) {
+                    $customer = Customer::firstOrCreate(
+                        ['phone' => $request->customer_phone],
+                        ['name' => $request->customer_name]
+                    );
+
+                    $customer->increment('purchase_count');
+                    $customer->update(['last_purchase_at' => now()]);
+                }
+
                 $sale = Sale::create([
                     'code' => 'TRX-' . date('Ymd') . '-' . Str::random(6),
                     'subtotal' => $subtotal - array_sum(array_column($saleItems, 'discount')),
@@ -125,6 +139,7 @@ class SaleController extends Controller
                     'payment_method' => $request->payment_method,
                     'notes' => $request->notes,
                     'cashier_id' => $request->user()->user_id,
+                    'customer_id' => $customer ? $customer->customer_id : null,
                     'transaction_date' => now(),
                 ]);
 
@@ -180,7 +195,7 @@ class SaleController extends Controller
     public function show($code)
     {
         try {
-            $sale = Sale::with(['cashier', 'saleItems.product'])
+            $sale = Sale::with(['cashier', 'saleItems.product', 'customer']) 
                 ->where('code', $code)
                 ->firstOrFail();
             return response()->json($sale);
@@ -322,6 +337,8 @@ class SaleController extends Controller
                 'code' => $sale->code,
                 'date' => $sale->transaction_date->format('d/m/Y H:i:s'),
                 'cashier' => $sale->cashier->name,
+                'customer' => $sale->customer ? $sale->customer->name : null,
+                'customer_phone' => $sale->customer ? $sale->customer->phone : null,
             ],
             'items' => $sale->saleItems->map(function ($item) {
                 return [

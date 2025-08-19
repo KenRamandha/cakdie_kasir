@@ -19,6 +19,7 @@ return new class extends Migration {
             $table->integer('stock')->default(0);
             $table->integer('min_stock')->default(0);
             $table->string('unit')->default('pcs');
+            $table->string('image_path')->nullable(); 
             $table->boolean('is_active')->default(true);
             $table->string('created_by');
             $table->foreign('created_by')->references('user_id')->on('users')->onDelete('restrict');

@@ -244,6 +244,7 @@ Route::middleware('auth:sanctum')->group(function () {
           Route::put('/{code}', [ProductController::class, 'update'])
                ->where('code', '[A-Za-z0-9\-_]+');
 
+
           /**
            * Update Product (Partial)
            * PATCH /api/products/{code}

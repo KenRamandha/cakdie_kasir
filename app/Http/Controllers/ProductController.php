@@ -7,7 +7,10 @@ use App\Models\StockLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Models\Category;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class ProductController extends Controller
 {
@@ -23,7 +26,12 @@ class ProductController extends Controller
                 }
             }
 
-            return response()->json($query->get());
+            $products = $query->get()->map(function ($product) {
+                $product->image_url = $product->image_path ? Storage::url($product->image_path) : null;
+                return $product;
+            });
+
+            return response()->json($products);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Gagal mengambil data produk: ' . $e->getMessage(),
@@ -37,29 +45,73 @@ class ProductController extends Controller
     public function store(Request $request)
     {
         try {
-            $request->validate([
-                'code' => 'required|unique:products',
-                'name' => 'required',
-                'category_code' => 'required|exists:categories,code',
+            $validator = Validator::make($request->all(), [
+                'code' => 'required|string|unique:products,code',
+                'name' => 'required|string|max:255',
+                'category_code' => 'required|string|exists:categories,code',
                 'price' => 'required|numeric|min:0',
+                'cost_price' => 'nullable|numeric|min:0',
                 'stock' => 'required|integer|min:0',
+                'min_stock' => 'nullable|integer|min:0',
+                'unit' => 'nullable|string|max:20',
+                'description' => 'nullable|string|max:1000',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
             ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
 
             $category = Category::where('code', $request->category_code)->firstOrFail();
 
-            $product = Product::create([
-                'code' => $request->code,
-                'name' => $request->name,
-                'description' => $request->description,
+            $productData = [
+                'code' => trim($request->code),
+                'name' => trim($request->name),
+                'description' => $request->description ? trim($request->description) : null,
                 'category_id' => $category->code,
-                'price' => $request->price,
-                'cost_price' => $request->cost_price,
-                'stock' => $request->stock,
-                'min_stock' => $request->min_stock ?? 0,
-                'unit' => $request->unit ?? 'pcs',
+                'price' => (float) $request->price,
+                'cost_price' => $request->cost_price ? (float) $request->cost_price : null,
+                'stock' => (int) $request->stock,
+                'min_stock' => $request->min_stock ? (int) $request->min_stock : 0,
+                'unit' => $request->unit ? trim($request->unit) : 'pcs',
                 'created_by' => $request->user()->user_id,
                 'updated_by' => $request->user()->user_id,
-            ]);
+                'image_path' => null,
+            ];
+
+            if ($request->hasFile('image')) {
+                $image = $request->file('image');
+
+                $directory = 'public/products';
+                if (!Storage::exists($directory)) {
+                    Storage::makeDirectory($directory);
+                }
+
+                $filename = 'product-' . Str::uuid() . '.' . $image->getClientOriginalExtension();
+
+                try {
+                    $stored = $image->storeAs('products', $filename, 'public');
+
+                    if ($stored) {
+                        $productData['image_path'] = $stored;
+                    } else {
+                        return response()->json([
+                            'message' => 'Failed to store image file',
+                            'errors' => ['image' => ['Could not save image to storage']]
+                        ], 500);
+                    }
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'message' => 'Failed to upload image',
+                        'errors' => ['image' => ['Image upload failed: ' . $e->getMessage()]]
+                    ], 500);
+                }
+            }
+
+            $product = Product::create($productData);
 
             if ($request->stock > 0) {
                 StockLog::create([
@@ -74,19 +126,19 @@ class ProductController extends Controller
                 ]);
             }
 
-            return response()->json($product->load('category'), 201);
+            $product->load('category');
+            $product->image_url = $product->image_path ? Storage::url($product->image_path) : null;
+
+            return response()->json($product, 201);
         } catch (ValidationException $e) {
-            $firstError = collect($e->errors())->first()[0];
             return response()->json([
-                'message' => 'Validasi gagal: ' . $firstError,
+                'message' => 'Validation failed',
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Gagal membuat produk: ' . $e->getMessage(),
-                'errors' => [
-                    'server' => [$e->getMessage()]
-                ]
+                'message' => 'Failed to create product',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -95,6 +147,7 @@ class ProductController extends Controller
     {
         try {
             $product = Product::with('category')->where('code', $code)->firstOrFail();
+            $product->image_url = $product->image_path ? Storage::url($product->image_path) : null;
             return response()->json($product);
         } catch (\Exception $e) {
             return response()->json([
@@ -111,51 +164,95 @@ class ProductController extends Controller
         try {
             $product = Product::with('category')->where('code', $code)->firstOrFail();
 
-            $request->validate([
-                'code' => 'required|unique:products,code,' . $product->code . ',code',
+            $validator = Validator::make($request->all(), [
+                'code' => 'required|string|unique:products,code,' . $product->code . ',code',
                 'name' => 'required|string|max:255',
-                'category_code' => 'required|exists:categories,code',
+                'category_code' => 'required|string|exists:categories,code',
                 'price' => 'required|numeric|min:0',
                 'cost_price' => 'nullable|numeric|min:0',
-                'stock' => 'nullable|integer|min:0',
+                'stock' => 'required|integer|min:0',
                 'min_stock' => 'nullable|integer|min:0',
                 'unit' => 'nullable|string|max:20',
-                'description' => 'nullable|string',
+                'description' => 'nullable|string|max:1000',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
+                'remove_image' => 'nullable|string|in:true,false',
+                '_method' => 'nullable|string',
             ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
 
             $category = Category::where('code', $request->category_code)->firstOrFail();
 
             $updateData = [
-                'name' => $request->name,
-                'description' => $request->description,
+                'code' => trim($request->code),
+                'name' => trim($request->name),
+                'description' => $request->description ? trim($request->description) : null,
                 'category_id' => $category->code,
-                'price' => $request->price,
-                'cost_price' => $request->cost_price,
-                'stock' => $request->stock ?? $product->stock,
-                'min_stock' => $request->min_stock ?? $product->min_stock,
-                'unit' => $request->unit ?? $product->unit,
+                'price' => (float) $request->price,
+                'cost_price' => $request->cost_price ? (float) $request->cost_price : null,
+                'stock' => (int) $request->stock,
+                'min_stock' => $request->min_stock ? (int) $request->min_stock : $product->min_stock,
+                'unit' => $request->unit ? trim($request->unit) : $product->unit,
                 'updated_by' => $request->user()->user_id,
             ];
 
-            if ($request->code !== $product->code) {
-                $updateData['code'] = $request->code;
+            $shouldRemoveImage = $request->input('remove_image') === 'true';
+            $hasImageUpload = $request->hasFile('image') && $request->file('image')->isValid();
+
+            $updateData['image_path'] = $product->image_path;
+
+            if ($hasImageUpload) {
+                $imageFile = $request->file('image');
+
+                if ($product->image_path && Storage::disk('public')->exists($product->image_path)) {
+                    $deleted = Storage::disk('public')->delete($product->image_path);
+                }
+
+                $directory = 'products';
+                if (!Storage::disk('public')->exists($directory)) {
+                    Storage::disk('public')->makeDirectory($directory);
+                }
+
+                $filename = 'product-' . Str::uuid() . '.' . $imageFile->getClientOriginalExtension();
+
+                try {
+                    $path = $imageFile->storeAs('products', $filename, 'public');
+
+                    if ($path) {
+                        $updateData['image_path'] = $path;
+                    } else {
+                        return response()->json([
+                            'message' => 'Failed to store image file',
+                            'errors' => ['image' => ['Could not save image to storage']]
+                        ], 500);
+                    }
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'message' => 'Failed to upload image',
+                        'errors' => ['image' => ['Image upload failed: ' . $e->getMessage()]]
+                    ], 500);
+                }
+            } elseif ($shouldRemoveImage) {
+                $updateData['image_path'] = null;
             }
 
-            $product->update($updateData);
+            $updated = $product->update($updateData);
 
-            return response()->json($product->load('category'));
-        } catch (ValidationException $e) {
-            $firstError = collect($e->errors())->first()[0];
-            return response()->json([
-                'message' => 'Validasi gagal: ' . $firstError,
-                'errors' => $e->errors()
-            ], 422);
+            $product->refresh();
+
+            $product = $product->fresh(['category']);
+            $product->image_url = $product->image_path ? Storage::url($product->image_path) : null;
+
+            return response()->json($product);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Gagal memperbarui produk: ' . $e->getMessage(),
-                'errors' => [
-                    'server' => [$e->getMessage()]
-                ]
+                'message' => 'Failed to update product',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -165,11 +262,18 @@ class ProductController extends Controller
         try {
             $product = Product::where('code', $code)->firstOrFail();
 
-            $request->validate([
+            $validator = Validator::make($request->all(), [
                 'quantity' => 'required|integer',
                 'type' => 'required|in:in,out,adjustment',
-                'notes' => 'nullable|string',
+                'notes' => 'nullable|string|max:255',
             ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
 
             $stockBefore = $product->stock;
             $quantity = $request->quantity;
@@ -207,6 +311,8 @@ class ProductController extends Controller
                 'notes' => $request->notes,
                 'created_by' => $request->user()->user_id,
             ]);
+
+            $product->image_url = $product->image_path ? Storage::url($product->image_path) : null;
 
             return response()->json($product);
         } catch (ValidationException $e) {

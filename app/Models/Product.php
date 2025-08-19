@@ -19,6 +19,7 @@ class Product extends Model
         'stock',
         'min_stock',
         'unit',
+        'image_path',
         'is_active',
         'created_by',
         'updated_by',

@@ -9,13 +9,13 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             UserSeeder::class,
-            // CategorySeeder::class,
-            // ProductSeeder::class,
-            // SaleSeeder::class,
-            // SaleItemSeeder::class,
-            // StockLogsSeeder::class,
-            // PrintLogsSeeder::class,
-            // CompanySettingSeeder::class,
+            CategorySeeder::class,
+            ProductSeeder::class,
+            SaleSeeder::class,
+            SaleItemSeeder::class,
+            StockLogsSeeder::class,
+            PrintLogsSeeder::class,
+            CompanySettingSeeder::class,
         ]);
         
         $this->command->info('All seeders completed successfully!');

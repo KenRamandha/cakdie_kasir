@@ -195,7 +195,7 @@ class SaleController extends Controller
     public function show($code)
     {
         try {
-            $sale = Sale::with(['cashier', 'saleItems.product', 'customer']) 
+            $sale = Sale::with(['cashier', 'saleItems.product', 'customer'])
                 ->where('code', $code)
                 ->firstOrFail();
             return response()->json($sale);
@@ -223,7 +223,12 @@ class SaleController extends Controller
                 }
             }
 
-            return response()->json($query->get());
+            $products = $query->get()->map(function ($product) {
+                $product->image_url = $product->image_path ? Storage::url($product->image_path) : null;
+                return $product;
+            });
+
+            return response()->json($products);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Gagal mengambil data produk: ' . $e->getMessage(),

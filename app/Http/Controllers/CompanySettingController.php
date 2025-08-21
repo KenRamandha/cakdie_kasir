@@ -118,12 +118,11 @@ class CompanySettingController extends Controller
             $settings->receipt_footer = $request->receipt_footer;
             $settings->save();
 
+            $settings->logo_url = $settings->logo_path ? Storage::url($settings->logo_path) : null;
+
             return response()->json([
                 'message' => 'Pengaturan perusahaan berhasil disimpan',
                 'data' => $settings,
-                'logo_url' => $settings->logo_path
-                    ? Storage::url($settings->logo_path)
-                    : null,
             ]);
         } catch (ValidationException $e) {
             $firstError = collect($e->errors())->first()[0];
